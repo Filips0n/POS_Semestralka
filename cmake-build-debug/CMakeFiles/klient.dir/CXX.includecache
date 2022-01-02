@@ -23,4 +23,8 @@ string.h
 -
 unistd.h
 -
+string
+-
+iostream
+-
 

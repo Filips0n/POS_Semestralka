@@ -21,4 +21,14 @@ string.h
 -
 unistd.h
 -
+string
+-
+iostream
+-
+fstream
+-
+sstream
+-
+unordered_map
+-
 
