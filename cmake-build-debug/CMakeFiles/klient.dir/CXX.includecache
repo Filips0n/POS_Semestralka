@@ -27,4 +27,8 @@ string
 -
 iostream
 -
+limits
+-
+curses.h
+-
 

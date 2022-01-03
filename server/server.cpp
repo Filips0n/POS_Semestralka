@@ -12,22 +12,26 @@
 #include <sstream>
 #include <unordered_map>
 using namespace std;
-
-unordered_map<string, string> udaje;
+typedef struct socketData{
+    int socketNumber;
+    int socket;
+    int socket2;
+} DATA;
+std::unordered_map<std::string, std::string> udaje;
 void vypis() {
     for (auto x : udaje)
-        cout << x.first << " " << x.second << endl;
-    cout << "--------------------" << endl;
+        std::cout << x.first << " " << x.second << std::endl;
+    std::cout << "--------------------" << std::endl;
 }
 void nacitajUdaje(){
     udaje.clear();
-    ifstream infile("../udaje.txt");
-    string readLine;
+    std::ifstream infile("../udaje.txt");
+    std::string readLine;
     if (!infile.is_open()) { std::exit(EXIT_FAILURE); }
     while (getline(infile, readLine)) {
-        string meno;
-        string heslo;
-        stringstream line(readLine);
+        std::string meno;
+        std::string heslo;
+        std::stringstream line(readLine);
         getline(line, meno, ' ');
         getline(line, heslo, ' ');
         udaje[meno]=heslo;
@@ -45,7 +49,7 @@ int zaregistrujPouzivatela(int *newsockfd){
     n = read(*newsockfd, buffer, 255);
     if (n < 0){perror("Error reading from socket");return 4;}
 
-    const char * meno = strtok(buffer," ");;
+    const char * meno = strtok(buffer," ");
     const char * heslo = strtok(NULL,"\n");
 
     for (auto x : udaje) {
@@ -56,18 +60,19 @@ int zaregistrujPouzivatela(int *newsockfd){
         }
     }
     if (!existuje){
-        ofstream myfile;
-        myfile.open("../udaje.txt",ios::app);
+        std::ofstream myfile;
+        myfile.open("../udaje.txt",std::ios::app);
         if (myfile.is_open())
         {
             myfile << meno << " " << heslo << "\n";
             myfile.close();
-        } else cout << "Unable to open file";
+        } else std::cout << "Unable to open file";
         nacitajUdaje();
     }
 
     n = write(*newsockfd, msg, strlen(msg)+1);
     if (n < 0){perror("Error writing to socket");return 5;}
+    return 0;
 }
 
 int skontrolujPrihlasenie(int *newsockfd){
@@ -93,26 +98,36 @@ int skontrolujPrihlasenie(int *newsockfd){
     }
     n = write(*newsockfd, msg, strlen(msg)+1);
     if (n < 0){perror("Error writing to socket");return 5;}
-
+    return 0;
 }
 
-int main(int argc, char *argv[])
-{
+void zrusUcet(char* pDeleteLine){
+    std::ifstream infile("../udaje.txt");
+    std::ofstream temp;
+    temp.open("../temp.txt");
+    std::string deleteLine = std::string(pDeleteLine);
+    string line;
+    while(getline(infile, line)){
+        if (line != deleteLine)
+            temp << line << std::endl;
+    }
+    infile.close();
+    temp.close();
+    remove("../udaje.txt");
+    rename("../temp.txt", "../udaje.txt");
     nacitajUdaje();
-    /*-------------------------------------------*/
+}
+
+int zaregistrujSpojenie(void *data){
+    DATA *d = (DATA *)data;
     int sockfd, newsockfd, n;
     socklen_t cli_len;
     struct sockaddr_in serv_addr, cli_addr;
 
-    if (argc < 2) {
-        fprintf(stderr,"usage %s port\n", argv[0]);
-        return 1;
-    }
-
     bzero((char*)&serv_addr, sizeof(serv_addr));
     serv_addr.sin_family = AF_INET;
     serv_addr.sin_addr.s_addr = INADDR_ANY;
-    serv_addr.sin_port = htons(atoi(argv[1]));
+    serv_addr.sin_port = htons(d->socketNumber);
 
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd < 0){perror("Error creating socket");return 1;}
@@ -125,26 +140,39 @@ int main(int argc, char *argv[])
 
     newsockfd = accept(sockfd, (struct sockaddr*)&cli_addr, &cli_len);
     if (newsockfd < 0){perror("ERROR on accept");return 3;}
+    d->socket = newsockfd;
+    d->socket2 = sockfd;
+    return 0;
+}
+int main(int argc, char *argv[])
+{
+    nacitajUdaje();
+    /*-------------------------------------------*/
+    DATA d = {atoi(argv[1]), 0,0};
+    zaregistrujSpojenie(&d);
     /*-------------------------------------------*/
     char buffer[256];
     bzero(buffer,256);
-    n = read(newsockfd, buffer, 255);
+    int n;
+    n = read(d.socket, buffer, 255);
     if (n < 0){perror("Error reading from socket");return 4;}
     if (strcmp(buffer, "a")==0){
-        cout << "Prihlasovanie" << endl;
-        skontrolujPrihlasenie(&newsockfd);
+        std::cout << "Prihlasovanie" << std::endl;
+        skontrolujPrihlasenie(&d.socket);
     } else if(strcmp(buffer, "n")==0){
-        cout << "Registracia" << endl;
-        zaregistrujPouzivatela(&newsockfd);
+        std::cout << "Registracia" << std::endl;
+        zaregistrujPouzivatela(&d.socket);
     }
     /*--------------------------------------------*/
     bzero(buffer,256);
-    n = read(newsockfd, buffer, 255);
-    if (strcmp(buffer, "1")==0){
-        zrusUcet();
+    n = read(d.socket, buffer, 255);
+    char * volba = strtok(buffer," ");
+    char * line = strtok(NULL,"\n");
+    if (strcmp(volba, "1")==0){
+        zrusUcet(line);
     }
-    close(newsockfd);
-    close(sockfd);
+    close(d.socket);
+    close(d.socket2);
 
     return 0;
 }
