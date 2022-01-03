@@ -11,14 +11,15 @@
 #include <iostream>
 #include <limits>
 #include <curses.h>
+#include <pthread.h>
 
 using namespace std;
+
 typedef struct socketData{
     char* server;
     int socketNumber;
     int socket;
 } DATA;
-
 typedef struct udaje{
     string meno;
     string heslo;
@@ -29,6 +30,7 @@ int prihlasenie(void *data, void *data2){
     UDAJE *udaje = (UDAJE *)data2;
     char buffer[256];
     int n;
+
     printf("Please enter a name and password: ");
     bzero(buffer,256);
     fgets(buffer, 255, stdin);
@@ -60,6 +62,7 @@ int registracia(void *data, void *data2){
     UDAJE *udaje = (UDAJE *)data2;
     char buffer[256];
     int n;
+
     printf("Please enter a name and password: ");
     bzero(buffer,256);
     fgets(buffer, 255, stdin);
@@ -86,7 +89,7 @@ int registracia(void *data, void *data2){
 
 int zaregistrujSpojenie(void *data){
     DATA *d = (DATA *)data;
-    int sockfd, n;
+    int sockfd;
     struct sockaddr_in serv_addr;
     struct hostent* server;
 
@@ -142,12 +145,10 @@ int main(int argc, char *argv[])
             std::cout << "Zadana nespravna moznost" << std::endl;
         }
     //} while(zaregistrovany != "n" || zaregistrovany != "a");
-//    initscr();
-//    curs_set(FALSE);
-//    clear();
     int volba;
-    std::cout << "------------------------------------------------------" << std::endl;
+    std::cout << "-----------------------------------------" << std::endl;
     std::cout << "1 - Zrusenie uctu" << std::endl;
+    std::cout << "-----------------------------------------" << std::endl;
     std::cin >> volba;
     if (volba == 1) {
         bzero(buffer,256);
