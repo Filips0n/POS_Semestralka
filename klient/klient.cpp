@@ -156,7 +156,7 @@ int main(int argc, char *argv[])
         string udajeString = udaje.meno + " " + udaje.heslo;
         strcat(buffer, " ");
         strcat(buffer, (udajeString).c_str());
-
+        cout << buffer << endl;
         n = write(d.socket, buffer, strlen(buffer));
         if (n < 0){perror("Error writing to socket");return 5;}
     }
