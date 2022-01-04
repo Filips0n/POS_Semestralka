@@ -20,74 +20,74 @@ typedef struct socketData{
     int socketNumber;
     int socket;
 } DATA;
-typedef struct udaje{
-    string meno;
-    string heslo;
-} UDAJE;
+typedef struct userData{
+    string name;
+    string password;
+} USER;
 
-int prihlasenie(void *data, void *data2){
-    DATA *d = (DATA *)data;
-    UDAJE *udaje = (UDAJE *)data2;
+int prihlasenie(int socket, void *data){
+    USER *user = (USER *)data;
     char buffer[256];
     int n;
 
-    printf("Please enter a name and password: ");
+    printf("Zadaj meno a heslo: ");
     bzero(buffer,256);
     fgets(buffer, 255, stdin);
 
     char temp[strlen(buffer)];
     strcpy(temp,buffer);
-    udaje->meno = strtok(temp," ");
-    udaje->heslo = strtok(NULL,"\n");
+    user->name = strtok(temp," ");
+    user->password = strtok(NULL,"\n");
 
-    n = write(d->socket, buffer, strlen(buffer));
+    n = write(socket, buffer, strlen(buffer));
     if (n < 0){perror("Error writing to socket");return 5;}
 
     bzero(buffer,256);
-    n = read(d->socket, buffer, 255);
+    n = read(socket, buffer, 255);
     if (n < 0){perror("Error reading from socket");return 6;}
 
     if(strcmp("1", buffer)==0){
         std::cout << "Uspesne prihlaseny" << std::endl;
+        return 1;
     } else if(strcmp("2", buffer)==0){
-        std::cout << "Zle zadane heslo" << std::endl;
+        std::cout << "Zle zadane password" << std::endl;
+        return 2;
     } else {
         std::cout << "Zadany pouzivatel neexistuje" << std::endl;
+        return 0;
     }
-    return 0;
 }
 
-int registracia(void *data, void *data2){
-    DATA *d = (DATA *)data;
-    UDAJE *udaje = (UDAJE *)data2;
+int registracia(int socket, void *data){
+    USER *user = (USER *)data;
     char buffer[256];
     int n;
 
-    printf("Please enter a name and password: ");
+    printf("Zadaj meno a heslo: ");
     bzero(buffer,256);
     fgets(buffer, 255, stdin);
 
     char temp[strlen(buffer)];
     strcpy(temp,buffer);
-    udaje->meno = strtok(buffer," ");
-    udaje->heslo = strtok(NULL,"\n");
+    user->name = strtok(temp," ");
+    user->password = strtok(NULL,"\n");
 
-    n = write(d->socket, buffer, strlen(buffer));
+    n = write(socket, buffer, strlen(buffer));
     if (n < 0){perror("Error writing to socket");return 5;}
 
     bzero(buffer,256);
-    n = read(d->socket, buffer, 255);
+    n = read(socket, buffer, 255);
     if (n < 0){perror("Error reading from socket");return 6;}
 
     if(strcmp("1", buffer)==0){
-        std::cout << "Uspesne zaregistrovany" << std::endl;
+        std::cout << "Uspesne registered" << std::endl;
     } else if(strcmp("2", buffer)==0){
-        std::cout << "Pouzivatel uz je zaregistrovany" << std::endl;
+        std::cout << "Pouzivatel uz je registered" << std::endl;
     }
     return 0;
 }
 
-int zaregistrujSpojenie(void *data){
+int connection(void *data){
     DATA *d = (DATA *)data;
     int sockfd;
     struct sockaddr_in serv_addr;
@@ -114,52 +114,87 @@ int zaregistrujSpojenie(void *data){
     return 0;
 }
 
+int logInRegisterAcc(int socket, void *data){
+    USER *user = (USER *)data;
+    int n;
+    char buffer[256];
+    std::string registered;
+    //do {
+    std::cout << "Zaregistrovany pouzivatel (a/n): ";
+    std::cin >> registered;
+    //flush buffer
+    std::cin.clear();
+    std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+
+    bzero(buffer,256);
+    if (registered == "a"){
+        buffer[0] = 'a';
+        n = write(socket, buffer, strlen(buffer));
+        if (n < 0){perror("Error writing to socket");return 1;}
+
+        prihlasenie(socket, user);
+        return 1;
+    } else if(registered == "n"){
+        buffer[0] = 'n';
+        n = write(socket, buffer, strlen(buffer));
+        if (n < 0){perror("Error writing to socket");return 2;}
+
+        registracia(socket, user);
+        return 2;
+    } else {
+        std::cout << "Zadana nespravna moznost" << std::endl;
+        return 0;
+    }
+    //} while(registered != "n" || registered != "a");
+}
+void* chatApp(void *data, void *data2){
+    DATA *d = (DATA *)data;
+    USER *user = (USER *)data2;
+    bool logOut = false;
+    bool deleteAcc = false;
+    int n;
+    char buffer[256];
+    if (logInRegisterAcc(d->socket, user) == 0){
+        return nullptr;
+    }
+
+    while(!logOut && !deleteAcc){
+        int answer;
+        std::cout << "-----------------------------------------" << std::endl;
+        std::cout << "1 - Zrusenie uctu" << std::endl;
+        std::cout << "2 - Odhlasenie" << std::endl;
+        std::cout << "-----------------------------------------" << std::endl;
+        std::cin >> answer;
+        if (answer == 1) {
+            deleteAcc = true;
+            bzero(buffer,256);
+            buffer[0] = '1';
+            n = write(d->socket, buffer, strlen(buffer));
+            if (n < 0){perror("Error writing to socket");return nullptr;}
+            sleep(1);
+            bzero(buffer,256);
+            string userString = user->name + " " + user->password;
+            strcat(buffer, (userString).c_str());
+            n = write(d->socket, buffer, strlen(buffer));
+            if (n < 0){perror("Error writing to socket");return nullptr;}
+            cout << "Ucet uspesne zruseny" << endl;
+        } else if(answer == 2){
+            logOut = true;
+            bzero(buffer,256);
+            buffer[0] = '2';
+            n = write(d->socket, buffer, strlen(buffer));
+            if (n < 0){perror("Error writing to socket");return nullptr;}
+            cout << "Odhlasenie uspesne" << endl;
+        }
+    }
+}
 int main(int argc, char *argv[])
 {
     DATA d = {argv[1], atoi(argv[2]), 0};
-    UDAJE udaje = {"", ""};
-    zaregistrujSpojenie(&d);
-    std::string zaregistrovany;
-    //do {
-        std::cout << "Zaregistrovany pouzivatel (a/n): ";
-        std::cin >> zaregistrovany;
-        //flush buffer
-        std::cin.clear();
-        std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-        int n;
-        char buffer[256];
-        bzero(buffer,256);
-        if (zaregistrovany == "a"){
-            buffer[0] = 'a';
-            n = write(d.socket, buffer, strlen(buffer));
-            if (n < 0){perror("Error writing to socket");return 5;}
+    USER user = {"", ""};
+    connection(&d);
+    chatApp(&d, &user);
 
-            prihlasenie(&d, &udaje);
-        } else if(zaregistrovany == "n"){
-            buffer[0] = 'n';
-            n = write(d.socket, buffer, strlen(buffer));
-            if (n < 0){perror("Error writing to socket");return 5;}
-
-            registracia(&d, &udaje);
-        } else {
-            std::cout << "Zadana nespravna moznost" << std::endl;
-        }
-    //} while(zaregistrovany != "n" || zaregistrovany != "a");
-    int volba;
-    std::cout << "-----------------------------------------" << std::endl;
-    std::cout << "1 - Zrusenie uctu" << std::endl;
-    std::cout << "-----------------------------------------" << std::endl;
-    std::cin >> volba;
-    if (volba == 1) {
-        bzero(buffer,256);
-        buffer[0] = '1';
-        string udajeString = udaje.meno + " " + udaje.heslo;
-        strcat(buffer, " ");
-        strcat(buffer, (udajeString).c_str());
-        cout << buffer << endl;
-        n = write(d.socket, buffer, strlen(buffer));
-        if (n < 0){perror("Error writing to socket");return 5;}
-    }
     close(d.socket);
     return 0;
 }
