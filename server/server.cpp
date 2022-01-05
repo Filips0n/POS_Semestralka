@@ -14,13 +14,13 @@
 #include <pthread.h>
 
 using namespace std;
-int aktualnyPocet = 0;
+
 typedef struct socketData{
-    //int socketNumber;
     int socket;
 } DATA;
 
 std::unordered_map<std::string, std::string> users;
+std::unordered_map<std::string, int> sockets;
 
 void saveMessage(char recieverSender[256], char message[256]);
 
@@ -58,7 +58,7 @@ int registerAcc(int *newsockfd){
 
     const char * meno = strtok(buffer," ");
     const char * heslo = strtok(NULL,"\n");
-
+    sockets[meno] = *newsockfd;
     for (auto x : users) {
         if (x.first == meno){
             msg = "2";
@@ -93,7 +93,7 @@ int logIn(int *newsockfd){
 
     const char * token = strtok(buffer," ");;
     const char * token2 = strtok(NULL,"\n");
-
+    sockets[token] = *newsockfd;
     auto item = users.find(token);
     if(item != users.end()){
         msg = (strcmp((item->second).c_str(), token2)==0) ? "1" : "2";
@@ -120,7 +120,16 @@ void zrusUcet(char* pDeleteLine){
     rename("../temp.txt", "../users.txt");
     loadUsers();
 }
-
+int findRecieverSocket(std::string name){
+    int socket = 0;
+    for (auto x : sockets){
+        if (x.first == name){
+            socket = x.second;
+            break;
+        }
+    }
+    return socket;
+}
 void* chatApp(void *data){
     DATA *d = (DATA *)data;
     int newsockfd, n;
@@ -130,7 +139,6 @@ void* chatApp(void *data){
 
     newsockfd = accept(d->socket, (struct sockaddr*)&cli_addr, &cli_len);
     if (newsockfd < 0){perror("ERROR on accept");return nullptr;}
-   // std::cout << "Uspesne pripojeny socket na porte: " << d->socketNumber << std::endl;
     //------------------------------------------------------------------------------//
 
     char buffer[256];
@@ -143,7 +151,6 @@ void* chatApp(void *data){
     } else if(strcmp(buffer, "n")==0){
         registerAcc(&newsockfd);
     }
-    //cout << "Koniec prihlasovania" << d->socketNumber << endl;
     /*--------------------------------------------*/
     bool logOut = false;
     bool deleteAcc = false;
@@ -167,30 +174,52 @@ void* chatApp(void *data){
             bzero(message,256);
             read(newsockfd, message, 255);
             saveMessage(recieverSender, message);
-        } else if(strcmp(buffer, "8")==0) {
-            char reciever[256];
-            bzero(reciever,256);
-            bzero(buffer,256);
-            read(newsockfd, reciever, 255);
-            std::ifstream infile("../messages.txt");
 
+        } else if(strcmp(buffer, "8")==0) {
+            char recieverSender[256];
+            char message[256];
+
+            bzero(recieverSender,256);
+            read(newsockfd, recieverSender, 255);
+
+            std::string reciever = std::string((char *)strtok(recieverSender," "));
+            std::string sender = std::string((char *)strtok(NULL,"\n"));
+
+            std::ifstream infile("../messages.txt");
             std::string s;
+
             while(getline(infile, s)){
                 std::stringstream stringLine(s);
                 getline( stringLine, s, ' ' );
-                if (s == reciever){
+                if (s == reciever || s == sender){
                     getline( stringLine, s, ' ' );
-                    strcat(buffer, s.c_str());
-                    strcat(buffer, ": ");
-                    getline( stringLine, s, '\n' );
-                    strcat(buffer, s.c_str());
-                    strcat(buffer, "\n");
+                    if(s == reciever || s == sender){
+                        strcat(buffer, s.c_str());
+                        strcat(buffer, ": ");
+                        getline( stringLine, s);
+                        strcat(buffer, s.c_str());
+                    }
                 }
             }
             infile.close();
 
             n = write(newsockfd, buffer, strlen(buffer));
             if (n < 0){perror("Error writing to socket");return nullptr;}
+
+            while(strcmp(message, "q")!=0){
+                bzero(message,256);
+                n = read(newsockfd, message, 255);
+
+                if(strcmp(message, "q")!=0){
+                    saveMessage(recieverSender, message);
+                }
+
+                int recieveSocket = findRecieverSocket(reciever);
+                if(recieveSocket != 0){
+                    n = write(recieveSocket, message, strlen(message));
+                    if (n < 0){perror("Error writing to socket");return nullptr;}
+                }
+            }
         }
     }
     //----------------------------------------------------------------------//
@@ -200,7 +229,6 @@ void* chatApp(void *data){
 void saveMessage(char recieverSender[256], char message[256]) {
     std::string recievSend(recieverSender);
     std::string mes(message);
-
     std::ofstream myfile;
     myfile.open("../messages.txt",std::ios::app);
     if (myfile.is_open()) {

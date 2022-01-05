@@ -15,18 +15,17 @@
 
 using namespace std;
 
-typedef struct socketData{
+typedef struct socketUserData{
     char* server;
     int socketNumber;
     int socket;
-} DATA;
-typedef struct userData{
+
     string name;
     string password;
-} USER;
+} DATA;
 
 int prihlasenie(int socket, void *data){
-    USER *user = (USER *)data;
+    DATA *user = (DATA *)data;
     char buffer[256];
     int n;
 
@@ -58,7 +57,7 @@ int prihlasenie(int socket, void *data){
     }
 }
 int registracia(int socket, void *data){
-    USER *user = (USER *)data;
+    DATA *user = (DATA *)data;
     char buffer[256];
     int n;
 
@@ -113,7 +112,7 @@ int connection(void *data){
     return 0;
 }
 int logInRegisterAcc(int socket, void *data){
-    USER *user = (USER *)data;
+    DATA *user = (DATA *)data;
     int n;
     char buffer[256];
     std::string registered;
@@ -146,14 +145,41 @@ int logInRegisterAcc(int socket, void *data){
     //} while(registered != "n" || registered != "a");
 }
 
-void* chatApp(void *data, void *data2){
+void* sendMessage(void *data){
     DATA *d = (DATA *)data;
-    USER *user = (USER *)data2;
+    char buffer[256];
+    int n;
+    std::string message;
+    while(message != "q"){
+        cout << d->name << ": ";
+        getline(cin, message);
+
+        bzero(buffer,256);
+        strcat(buffer, (message).c_str());
+        n = write(d->socket, buffer, strlen(buffer));
+    }
+}
+
+void* recieveMessage(void *data){
+    DATA *d = (DATA *)data;
+    char message[256];
+    int n;
+    while(strcmp(message, "q")!=0){
+        bzero(message,256);
+        n = read(d->socket, message, 255);
+        if (n < 0){perror("Error reading from socket");return nullptr;}
+        if (strcmp(message, "q")!=0){
+            cout <<"Message: " << message << endl;
+        }
+    }
+}
+void* chatApp(void *data){
+    DATA *d = (DATA *)data;
     bool logOut = false;
     bool deleteAcc = false;
     int n;
     char buffer[256];
-    if (logInRegisterAcc(d->socket, user) == 0){
+    if (logInRegisterAcc(d->socket, d) == 0){
         return nullptr;
     }
 
@@ -168,13 +194,9 @@ void* chatApp(void *data, void *data2){
         std::cout << "5 - Vytvorit skupinovu konverzaciu" << std::endl;
         std::cout << "6 - Pridat kontakt" << std::endl;
         std::cout << "7 - Odobrat kontakt" << std::endl;
-        std::cout << "8 - Ukaz spravy" << std::endl;
+        std::cout << "8 - Otvorit Chat" << std::endl;
         std::cout << "-----------------------------------------" << std::endl;
 
-        //nefunguje
-        std::cin.clear();
-        std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-        //-----//
         std::cin >> answer;
         if (answer == 1) {
             deleteAcc = true;
@@ -184,20 +206,20 @@ void* chatApp(void *data, void *data2){
             if (n < 0){perror("Error writing to socket");return nullptr;}
             sleep(1);
             bzero(buffer,256);
-            string userString = user->name + " " + user->password;
+            std::string userString = d->name + " " + d->password;
             strcat(buffer, (userString).c_str());
             n = write(d->socket, buffer, strlen(buffer));
             if (n < 0){perror("Error writing to socket");return nullptr;}
-            cout << "Ucet uspesne zruseny" << endl;
+            std::cout << "Ucet uspesne zruseny" << std::endl;
         } else if(answer == 2){
             logOut = true;
             bzero(buffer,256);
             buffer[0] = '2';
             n = write(d->socket, buffer, strlen(buffer));
             if (n < 0){perror("Error writing to socket");return nullptr;}
-            cout << "Odhlasenie uspesne" << endl;
+            std::cout << "Odhlasenie uspesne" << std::endl;
         } else if(answer == 3){
-            bzero(buffer,256);
+           /* bzero(buffer,256);
             buffer[0] = '3';
             n = write(d->socket, buffer, strlen(buffer));
             if (n < 0){perror("Error writing to socket");return nullptr;}
@@ -205,22 +227,26 @@ void* chatApp(void *data, void *data2){
             string name;
             cout << "Komu chces poslat spravu? ";
             cin >> name;
+
+            std::cin.clear();
+            std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+
             bzero(buffer,256);
             strcat(buffer, (name).c_str());
             strcat(buffer, " ");
             strcat(buffer, (user->name).c_str());
             n = write(d->socket, buffer, strlen(buffer));
             if (n < 0){perror("Error writing to socket");return nullptr;}
+
             sleep(1);
             string message;
             cout << "Sprava: ";
-            cin >> message;
+            getline(cin, message);
+
             bzero(buffer,256);
             strcat(buffer, (message).c_str());
-            strcat(buffer, "\n");
             n = write(d->socket, buffer, strlen(buffer));
-            if (n < 0){perror("Error writing to socket");return nullptr;}
-            sleep(1);
+            if (n < 0){perror("Error writing to socket");return nullptr;}*/
         } else if(answer == 4){
 
         } else if(answer == 5){
@@ -235,25 +261,47 @@ void* chatApp(void *data, void *data2){
             n = write(d->socket, buffer, strlen(buffer));
             if (n < 0){perror("Error writing to socket");return nullptr;}
             sleep(1);
+
+            std::string name;
+            std::cout << "S kym chces pisat? ";
+            std::cin >> name;
+
+            std::cin.clear();
+            std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+
             bzero(buffer,256);
-            strcat(buffer, (user->name).c_str());
+            strcat(buffer, (name).c_str());
+            strcat(buffer, " ");
+            strcat(buffer, (d->name).c_str());
             n = write(d->socket, buffer, strlen(buffer));
             if (n < 0){perror("Error writing to socket");return nullptr;}
+
+            std::cout << "Pises si s " << name << ", ak chces konverzaciu ukonict stlac 'q'" << std::endl;
+            std::cout << "Vase spravy:" <<  std::endl;
 
             bzero(buffer,256);
             n = read(d->socket, buffer, 255);
             if (n < 0){perror("Error reading from socket");return nullptr;}
-            cout << buffer << endl;
-            getchar();//nefunguje
+            //Vsetky predchadzajuce spravy
+            std::cout << buffer << std::endl;
+
+            pthread_t sendThread, recieveThread;
+            pthread_create(&sendThread, NULL, &sendMessage, &d);
+            pthread_create(&recieveThread, NULL, &recieveMessage, &d);
+
+            pthread_join(sendThread, NULL);
+            pthread_join(recieveThread, NULL);
+            std::cin.get();
         }
+        std::cin.clear();
+        std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
     }
 }
 int main(int argc, char *argv[])
 {
-    DATA d = {argv[1], atoi(argv[2]), 0};
-    USER user = {"", ""};
+    DATA d = {argv[1], atoi(argv[2]), 0,"", ""};
     connection(&d);
-    chatApp(&d, &user);
+    chatApp(&d);
 
     close(d.socket);
     return 0;
