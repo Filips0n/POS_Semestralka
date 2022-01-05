@@ -12,7 +12,7 @@
 #include <limits>
 #include <curses.h>
 #include <pthread.h>
-
+#define SIZE 1024
 using namespace std;
 
 typedef struct socketUserData{
@@ -20,8 +20,8 @@ typedef struct socketUserData{
     int socketNumber;
     int socket;
 
-    string name;
-    string password;
+    std::string name;
+    std::string password;
 } DATA;
 
 int prihlasenie(int socket, void *data){
@@ -166,10 +166,11 @@ void* recieveMessage(void *data){
     int n;
     while(strcmp(message, "q")!=0){
         bzero(message,256);
+        //cout << "cakam na spravu" << endl;
         n = read(d->socket, message, 255);
         if (n < 0){perror("Error reading from socket");return nullptr;}
         if (strcmp(message, "q")!=0){
-            cout <<"Message: " << message << endl;
+            cout << strtok(message," ") << ": " << strtok(NULL,"\n") << endl;
         }
     }
 }
@@ -248,7 +249,35 @@ void* chatApp(void *data){
             n = write(d->socket, buffer, strlen(buffer));
             if (n < 0){perror("Error writing to socket");return nullptr;}*/
         } else if(answer == 4){
+            std::string name;
+            char *filename;
+            char *filename2;
+            FILE *fp;
+            cout << "Komu chces poslat subor? ";
+            cin >> name;
+            cout << endl;
+            n = write(d->socket, name.c_str(), strlen(buffer));
+            if (n < 0){perror("Error writing to socket");return nullptr;}
 
+            cout << "Zadaj nazov suboru: ";
+            strcat(filename, "../");
+            std::cin >> filename2;
+            strcat(filename, filename2);
+            fp = fopen(filename, "r");
+            if (fp == NULL) {
+                perror("[-]Error in reading file.");
+                exit(1);
+            }
+            char data[SIZE] = {0};
+
+            while(fgets(data, SIZE, fp) != NULL) {
+                if (send(d->socket, data, sizeof(data), 0) == -1) {
+                    perror("[-]Error in sending file.");
+                    exit(1);
+                }
+                bzero(data, SIZE);
+            }
+            printf("[+]File data sent successfully.\n");
         } else if(answer == 5){
 
         } else if(answer == 6){
@@ -276,22 +305,22 @@ void* chatApp(void *data){
             n = write(d->socket, buffer, strlen(buffer));
             if (n < 0){perror("Error writing to socket");return nullptr;}
 
-            std::cout << "Pises si s " << name << ", ak chces konverzaciu ukonict stlac 'q'" << std::endl;
+            std::cout << "Pises si s " << name << ", ak chces konverzaciu ukoncit stlac 'q'" << std::endl;
             std::cout << "Vase spravy:" <<  std::endl;
 
-            bzero(buffer,256);
-            n = read(d->socket, buffer, 255);
+            char messages[1024];
+            bzero(messages,1024);
+            n = read(d->socket, messages, 1023);
             if (n < 0){perror("Error reading from socket");return nullptr;}
             //Vsetky predchadzajuce spravy
-            std::cout << buffer << std::endl;
+            std::cout << messages << std::endl;
 
             pthread_t sendThread, recieveThread;
-            pthread_create(&sendThread, NULL, &sendMessage, &d);
-            pthread_create(&recieveThread, NULL, &recieveMessage, &d);
+            pthread_create(&sendThread, NULL, &sendMessage, d);
+            pthread_create(&recieveThread, NULL, &recieveMessage, d);
 
             pthread_join(sendThread, NULL);
             pthread_join(recieveThread, NULL);
-            std::cin.get();
         }
         std::cin.clear();
         std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');

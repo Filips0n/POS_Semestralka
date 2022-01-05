@@ -12,7 +12,7 @@
 #include <sstream>
 #include <unordered_map>
 #include <pthread.h>
-
+#define SIZE 1024
 using namespace std;
 
 typedef struct socketData{
@@ -175,48 +175,82 @@ void* chatApp(void *data){
             read(newsockfd, message, 255);
             saveMessage(recieverSender, message);
 
-        } else if(strcmp(buffer, "8")==0) {
+        }else if(strcmp(buffer, "4")==0) {
+            FILE *fp;
+            char *filename = "recv.txt";
+            char buffer[SIZE];
+
+            bzero(buffer,256);
+            n = read(newsockfd, buffer, 255);
+
+            fp = fopen(filename, "w");
+            while (1) {
+                n = recv(findRecieverSocket(buffer), buffer, SIZE, 0);
+                if (n <= 0){
+                    break;
+                }
+                fprintf(fp, "%s", buffer);
+                bzero(buffer, SIZE);
+            }
+            printf("[+]Data written in the file successfully.\n");
+        }else if(strcmp(buffer, "8")==0) {
             char recieverSender[256];
+            char recieverSender2[256];
             char message[256];
+            char oldMessages[1024];
 
+            bzero(oldMessages,1024);
             bzero(recieverSender,256);
-            read(newsockfd, recieverSender, 255);
 
-            std::string reciever = std::string((char *)strtok(recieverSender," "));
+            n = read(newsockfd, recieverSender, 255);
+            if (n < 0){perror("Error writing to socket");return nullptr;}
+
+            strcpy(recieverSender2, recieverSender);
+            std::string reciever = std::string((char *)strtok(recieverSender2," "));
             std::string sender = std::string((char *)strtok(NULL,"\n"));
 
             std::ifstream infile("../messages.txt");
             std::string s;
-
+            int numberOfMessages = 0;
             while(getline(infile, s)){
                 std::stringstream stringLine(s);
                 getline( stringLine, s, ' ' );
                 if (s == reciever || s == sender){
                     getline( stringLine, s, ' ' );
                     if(s == reciever || s == sender){
-                        strcat(buffer, s.c_str());
-                        strcat(buffer, ": ");
+                        strcat(oldMessages, s.c_str());
+                        strcat(oldMessages, ": ");
                         getline( stringLine, s);
-                        strcat(buffer, s.c_str());
+                        strcat(oldMessages, s.c_str());
+                        strcat(oldMessages, "\n");
+                        numberOfMessages++;
                     }
                 }
             }
             infile.close();
+            if(numberOfMessages <= 0){
+                strcat(oldMessages, "Prazdna historia\n");
+            }
 
-            n = write(newsockfd, buffer, strlen(buffer));
+            n = write(newsockfd, oldMessages, strlen(oldMessages));
             if (n < 0){perror("Error writing to socket");return nullptr;}
 
             while(strcmp(message, "q")!=0){
                 bzero(message,256);
                 n = read(newsockfd, message, 255);
-
                 if(strcmp(message, "q")!=0){
                     saveMessage(recieverSender, message);
+                } else {
+                    n = write(newsockfd, message, strlen(message));
+                    if (n < 0){perror("Error writing to socket");return nullptr;}
                 }
-
+                char message2[256];
+                strcpy(message2, sender.c_str());
+                strcat(message2, " ");
+                strcat(message2, message);
                 int recieveSocket = findRecieverSocket(reciever);
                 if(recieveSocket != 0){
-                    n = write(recieveSocket, message, strlen(message));
+                    n = write(recieveSocket, message2, strlen(message2));
                     if (n < 0){perror("Error writing to socket");return nullptr;}
                 }
             }
