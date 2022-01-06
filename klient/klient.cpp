@@ -12,6 +12,7 @@
 #include <limits>
 #include <curses.h>
 #include <pthread.h>
+#include <algorithm>
 #define SIZE 1024
 using namespace std;
 
@@ -84,6 +85,7 @@ int registracia(int socket, void *data){
         std::cout << "Pouzivatel uz je zaregistrovany" << std::endl;
         return 0;
     }
+    return 0;
 }
 int connection(void *data){
     DATA *d = (DATA *)data;
@@ -157,7 +159,9 @@ void* sendMessage(void *data){
         bzero(buffer,256);
         strcat(buffer, (message).c_str());
         n = write(d->socket, buffer, strlen(buffer));
+        if (n < 0){perror("Error writing to socket");return nullptr;}
     }
+    return nullptr;
 }
 
 void* recieveMessage(void *data){
@@ -173,6 +177,7 @@ void* recieveMessage(void *data){
             cout << strtok(message," ") << ": " << strtok(NULL,"\n") << endl;
         }
     }
+    return nullptr;
 }
 void* chatApp(void *data){
     DATA *d = (DATA *)data;
@@ -280,7 +285,29 @@ void* chatApp(void *data){
             }
 
         } else if(answer == 6){
+            bzero(buffer,256);
+            buffer[0] = '6';
+            n = write(d->socket, buffer, strlen(buffer));
+            if (n < 0){perror("Error writing to socket");return nullptr;}
 
+            std::string name;
+            std::cout << "Koho si ziadas odstranit z kontaktov? ";
+            std::cin >> name;
+            name = d->name + " " + name;
+            std::cin.clear();
+            std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+
+            n = write(d->socket, name.c_str(), strlen(name.c_str()));
+            if (n < 0){perror("Error writing to socket");return nullptr;}
+
+            bzero(buffer,256);
+            n = read(d->socket, buffer, 255);
+            if (n < 0){perror("Error reading from socket");return nullptr;}
+            if(strcmp(buffer,"1")==0){
+                cout << "Odstranenie kontaktu uspesne" << endl;
+            } else {
+                cout << "Zadaneho pouzivatela nemate v kontaktoch" << endl;
+            }
         } else if(answer == 7){
             bzero(buffer,256);
             buffer[0] = '7';
@@ -294,9 +321,29 @@ void* chatApp(void *data){
             bzero(contacts,SIZE);
             n = read(d->socket, contacts, SIZE-1);
             if (n < 0){perror("Error reading from socket");return nullptr;}
-            //Vsetky predchadzajuce spravy
+            std::cout << "Vase kontakty: " << std::endl;
             std::cout << contacts << std::endl;
+
+            std::cin.clear();
+            std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+
+            char* end = contacts + sizeof(contacts) / sizeof(contacts[0]);
+            char* position = std::find(contacts, end, 'r');
+            if(position != end){
+                std::string message;
+                cout << "Prijimanie ziadosti ukoncite stlacenim 'q'" << endl;
+                while(message != "q"){
+                    cout  << "Zadajte meno a prijatie(a) alebo neprijatie(n) ziadosti o priatelstvo: ";
+                    getline(cin, message);
+
+                    bzero(buffer,256);
+                    strcat(buffer, (message).c_str());
+                    n = write(d->socket, buffer, strlen(buffer));
+                    if (n < 0){perror("Error writing to socket");return nullptr;}
+                }
+            }
             cin.get();
+
         } else if(answer == 8){
             bzero(buffer,256);
             buffer[0] = '8';
@@ -307,7 +354,9 @@ void* chatApp(void *data){
             std::string name;
             std::cout << "S kym chces pisat? ";
             std::cin >> name;
-
+            if(name == d->name){
+                std::cout << "Nemozes si pisat sam so sebou" << std::endl;
+            } else {
             std::cin.clear();
             std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
 
@@ -334,11 +383,14 @@ void* chatApp(void *data){
 
             pthread_join(sendThread, NULL);
             pthread_join(recieveThread, NULL);
+            }
         }
         std::cin.clear();
         std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
     }
+    return nullptr;
 }
+
 int main(int argc, char *argv[])
 {
     DATA d = {argv[1], atoi(argv[2]), 0,"", ""};
