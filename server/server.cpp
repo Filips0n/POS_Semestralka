@@ -12,11 +12,13 @@
 #include <sstream>
 #include <unordered_map>
 #include <pthread.h>
+#include <vector>
 #define SIZE 1024
 #define fileUsers "../users.txt"
 #define fileContacts "../contacts.txt"
 #define fileMessages "../messages.txt"
-using namespace std;
+#define fileGroups "../groups.txt"
+//using namespace std;
 
 typedef struct socketData{
     int socket;
@@ -25,6 +27,8 @@ typedef struct socketData{
 std::unordered_map<std::string, std::string> users;
 std::unordered_map<std::string, int> sockets;
 std::unordered_map<std::string, std::string> contacts;
+std::unordered_map<std::string, std::string> chatWith;
+std::unordered_map<std::string, std::vector<std::string>> groups;
 
 void showUsers() {
     std::cout << "MENO HESLO" << std::endl;
@@ -33,6 +37,65 @@ void showUsers() {
     std::cout << "--------------------" << std::endl;
 }
 
+void* loadGroupChats(){
+    groups.clear();
+    std::ifstream infile(fileGroups);
+    std::string readLine;
+    if (!infile.is_open()) { std::exit(EXIT_FAILURE); }
+    while (getline(infile, readLine)) {
+        std::string data1;
+        std::string data2;
+        std::stringstream line(readLine);
+        int Num = 0;
+        char prev = ' ';
+
+        for(unsigned int i = 0; i < readLine.size(); i++) {
+            if(readLine[i] != ' ' && prev == ' ') Num++;
+            prev = readLine[i];
+        }
+        getline(line, data1, ' ');
+        for (int i = 0; i < Num-1; ++i) {
+            getline(line, data2, ' ');
+            groups[data1].push_back(data2);
+        }
+    }
+    infile.close();
+    return nullptr;
+}
+void* saveGroupChat(int &newsockfd){
+    char buffer[256];
+    char countBuffer[256];
+    int n;
+    char *point;
+
+    bzero(buffer,256);
+    n = read(newsockfd, buffer, 255);
+    strcpy(countBuffer, buffer);
+    point = strtok (countBuffer," ");
+    int wordCount = 0;
+    while (point != NULL)
+    {
+        wordCount++;
+        point = strtok (NULL, " ");
+    }
+    std::string name = std::string((char *)strtok(buffer," "));
+
+    std::ofstream myfile;
+    myfile.open(fileGroups,std::ios::app);
+    if (myfile.is_open()) {
+        myfile << name;
+        std::cout << name << " ";
+        for (int i = 0; i < wordCount-1; ++i) {
+            name = std::string((char *)strtok(NULL," "));
+            myfile << " " << name;
+            std::cout << name << " ";
+        }
+    } else std::cout << "Unable to open file";
+    myfile << "\n";
+    myfile.close();
+    loadGroupChats();
+    return nullptr;
+}
 void* loadData(std::string filename, std::unordered_map<std::string, std::string> &pStructure) {
     pStructure.clear();
     std::ifstream infile(filename);
@@ -58,7 +121,7 @@ int deleteData(std::string filename, std::unordered_map<std::string, std::string
     std::ofstream temp;
     temp.open("../temp.txt");
     std::string deleteLine = std::string(pDeleteLine);
-    string line;
+    std::string line;
     while(getline(infile, line)){
         if ((line != deleteLine) && (line.find(deleteLine) == std::string::npos)) {
             temp << line << std::endl;
@@ -156,74 +219,6 @@ int findRecieverSocket(std::string name){
     }
     return socket;
 }
-
-void* chatWithUser(int &newsockfd){
-    char recieverSender[256];
-    char recieverSender2[256];
-    char message[256];
-    char oldMessages[1024];
-    int n;
-
-    bzero(oldMessages,1024);
-    bzero(recieverSender,256);
-
-    n = read(newsockfd, recieverSender, 255);
-    if (n < 0){perror("Error writing to socket");return nullptr;}
-
-    strcpy(recieverSender2, recieverSender);
-    std::string reciever = std::string((char *)strtok(recieverSender2," "));
-    std::string sender = std::string((char *)strtok(NULL,"\n"));
-
-    std::ifstream infile(fileMessages);
-    std::string s;
-    int numberOfMessages = 0;
-    while(getline(infile, s)){
-        std::stringstream stringLine(s);
-        getline( stringLine, s, ' ' );
-        std::string fileReciever = s;
-        if (s == reciever || s == sender){
-            getline( stringLine, s, ' ' );
-            if((s != fileReciever) && (s == reciever || s == sender)){
-                strcat(oldMessages, s.c_str());
-                strcat(oldMessages, ": ");
-                getline( stringLine, s);
-                strcat(oldMessages, s.c_str());
-                strcat(oldMessages, "\n");
-                numberOfMessages++;
-            }
-        }
-    }
-    infile.close();
-    if(numberOfMessages <= 0){
-        strcat(oldMessages, "Prazdna historia\n");
-    }
-
-    n = write(newsockfd, oldMessages, strlen(oldMessages));
-    if (n < 0){perror("Error writing to socket");return nullptr;}
-    bzero(message,256);
-    while(strcmp(message, "q")!=0){
-        bzero(message,256);
-        n = read(newsockfd, message, 255);
-        if(strcmp(message, "q")!=0){
-            saveMessage(recieverSender, message);
-            char message2[256];
-            strcpy(message2, sender.c_str());
-            strcat(message2, " ");
-            strcat(message2, message);
-            int recieveSocket = findRecieverSocket(reciever);
-            if(recieveSocket != 0){
-                n = write(recieveSocket, message2, strlen(message2));
-                if (n < 0){perror("Error writing to socket");return nullptr;}
-            }
-        } else {
-            //ukoncenie cakania na read v recieveMessage
-            n = write(newsockfd, message, strlen(message));
-            if (n < 0){perror("Error writing to socket");return nullptr;}
-        }
-    }
-    return nullptr;
-}
-
 void* showContacts(int &newsockfd){
     char oldContacts[SIZE];
     char requestContacts[SIZE];
@@ -288,7 +283,7 @@ void* showContacts(int &newsockfd){
             if((strcmp(message, "q")!=0)){
                 std::string name = std::string((char *)strtok(message," "));
                 std::string accept = std::string((char *)strtok(NULL,"\n"));
-                string myName(buffer);
+                std::string myName(buffer);
                 char deleteLine[256];
                 //odstranim kontakt, ak je a ako ano, znovu pridam kontakt uz bez 'r'
                 bzero(deleteLine, 256);
@@ -303,7 +298,6 @@ void* showContacts(int &newsockfd){
     }
     return nullptr;
 }
-
 void* deleteContact(int &newsockfd){
     std::string success = "0";
     char message[256];
@@ -326,6 +320,97 @@ void* deleteContact(int &newsockfd){
 
     n = write(newsockfd, success.c_str(), strlen(success.c_str()));
     if (n < 0){perror("Error writing to socket");return nullptr;}
+    return nullptr;
+}
+void* chat(int &newsockfd, bool user){
+    char recieverSender[256];
+    char recieverSender2[256];
+    char message[256];
+    char oldMessages[1024];
+    int n;
+
+    bzero(oldMessages,1024);
+    bzero(recieverSender,256);
+
+    n = read(newsockfd, recieverSender, 255);
+    if (n < 0){perror("Error writing to socket");return nullptr;}
+
+    strcpy(recieverSender2, recieverSender);
+    std::string reciever = std::string((char *)strtok(recieverSender2," "));
+    std::string sender = std::string((char *)strtok(NULL,"\n"));
+    chatWith[sender] = reciever;
+
+    std::ifstream infile(fileMessages);
+    std::string s;
+    int numberOfMessages = 0;
+    while(getline(infile, s)){
+        std::stringstream stringLine(s);
+        getline( stringLine, s, ' ' );
+        if(user == false){
+            if (s == reciever){
+                getline( stringLine, s, ' ' );
+                strcat(oldMessages, s.c_str());
+                strcat(oldMessages, ": ");
+                getline( stringLine, s);
+                strcat(oldMessages, s.c_str());
+                strcat(oldMessages, "\n");
+                numberOfMessages++;
+            }
+        } else {
+            std::string recieverFromFile = s;
+            if (s == reciever || s == sender){
+                getline( stringLine, s, ' ' );
+                if((s != recieverFromFile) && (s == reciever || s == sender)){
+                    strcat(oldMessages, s.c_str());
+                    strcat(oldMessages, ": ");
+                    getline( stringLine, s);
+                    strcat(oldMessages, s.c_str());
+                    strcat(oldMessages, "\n");
+                    numberOfMessages++;
+                }
+            }
+        }
+    }
+    infile.close();
+    if(numberOfMessages <= 0){
+        strcat(oldMessages, "Prazdna historia\n");
+    }
+
+    n = write(newsockfd, oldMessages, strlen(oldMessages));
+    if (n < 0){perror("Error writing to socket");return nullptr;}
+
+    bzero(message,256);
+    while(strcmp(message, "q")!=0){
+        bzero(message,256);
+        n = read(newsockfd, message, 255);
+        if(strcmp(message, "q")!=0){
+            saveMessage(recieverSender, message);
+            char message2[256];
+            strcpy(message2, sender.c_str());
+            strcat(message2, " ");
+            strcat(message2, message);
+            if(user == false){
+                for (auto y : groups[reciever]) {
+                    int recieveSocket = findRecieverSocket(y);
+                    if((chatWith[y] == reciever) && (recieveSocket != 0) && (newsockfd != recieveSocket)){
+                        n = write(recieveSocket, message2, strlen(message2));
+                        if (n < 0){perror("Error writing to socket");return nullptr;}
+                    }
+                }
+            } else {
+                int recieveSocket = findRecieverSocket(reciever);
+                if((chatWith[reciever] == sender) && (recieveSocket != 0) && (newsockfd != recieveSocket)){
+                    n = write(recieveSocket, message2, strlen(message2));
+                    if (n < 0){perror("Error writing to socket");return nullptr;}
+                }
+            }
+        } else {
+            //ukoncenie cakania na read v recieveMessage
+            n = write(newsockfd, message, strlen(message));
+            if (n < 0){perror("Error writing to socket");return nullptr;}
+        }
+    }
+    chatWith[sender] = "";
     return nullptr;
 }
 
@@ -366,9 +451,9 @@ void* chatApp(void *data){
 
             deleteData(fileUsers, users, buffer);
 
-            cout << buffer << endl;
+            std::cout << buffer << std::endl;
             std::string myName = std::string((char *)strtok(buffer," "));
-            cout << myName << endl;
+            std::cout << myName << std::endl;
             char deleteLine[256];
             bzero(deleteLine, 256);
             strcat(deleteLine, (myName).c_str());
@@ -391,7 +476,7 @@ void* chatApp(void *data){
             printf("[+]Data written in the file successfully.\n");
 
         } else if(strcmp(buffer, "4")==0) {
-
+            saveGroupChat(newsockfd);
         } else if(strcmp(buffer, "5")==0) {
             std::string success = "0";
 
@@ -415,8 +500,10 @@ void* chatApp(void *data){
             deleteContact(newsockfd);
         } else if(strcmp(buffer, "7")==0) {
             showContacts(newsockfd);
-        }  else if(strcmp(buffer, "8")==0) {
-            chatWithUser(newsockfd);
+        } else if(strcmp(buffer, "8")==0) {
+            chat(newsockfd, true);
+        } else if(strcmp(buffer, "9")==0) {
+            chat(newsockfd, false);
         }
     }
     //----------------------------------------------------------------------//
@@ -450,10 +537,11 @@ int connection(void *data, int server){
 int main(int argc, char *argv[])
 {
     loadData(fileUsers, users);
+    loadGroupChats();
     //------------------------------------------//
     pthread_t threadsApp[users.size()+1];
     int threadsSize = sizeof threadsApp / sizeof threadsApp[0];
-    cout << threadsSize << endl;
+    std::cout << threadsSize << std::endl;
     /*-------------------------------------------*/
     struct socketData port;
     connection(&port, atoi(argv[1]));

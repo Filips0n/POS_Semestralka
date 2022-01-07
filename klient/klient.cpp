@@ -197,12 +197,13 @@ void* chatApp(void *data){
         std::cout << "-----------------------------------------" << std::endl;
         std::cout << "1 - Zrusenie uctu" << std::endl;
         std::cout << "2 - Odhlasenie" << std::endl;
-        std::cout << "3 - Posat subor" << std::endl;
+        std::cout << "3 - Poslat subor" << std::endl;
         std::cout << "4 - Vytvorit skupinovu konverzaciu" << std::endl;
         std::cout << "5 - Pridat kontakt" << std::endl;
         std::cout << "6 - Odobrat kontakt" << std::endl;
         std::cout << "7 - Zobrazit kontakty" << std::endl;
-        std::cout << "8 - Otvorit Chat" << std::endl;
+        std::cout << "8 - Otvorit chat" << std::endl;
+        std::cout << "9 - Otvorit skupinovy chat" << std::endl;
         std::cout << "-----------------------------------------" << std::endl;
 
         std::cin >> answer;
@@ -236,11 +237,6 @@ void* chatApp(void *data){
             char filename[256];
             char filename2[256];
             FILE *f;
-//            cout << "Komu chces poslat subor? ";
-//            cin >> name;
-//            cout << endl;
-//            n = write(d->socket, name.c_str(), strlen(buffer));
-//            if (n < 0){perror("Error writing to socket");return nullptr;}
 
             cout << "Zadaj nazov suboru: ";
             std::cin >> filename2;
@@ -270,6 +266,35 @@ void* chatApp(void *data){
             }
             cout << "Subor uspesne poslany na server" << endl;
         } else if(answer == 4){
+            bzero(buffer,256);
+            buffer[0] = '4';
+            n = write(d->socket, buffer, strlen(buffer));
+            if (n < 0){perror("Error writing to socket");return nullptr;}
+
+            std::string name;
+            std::cout << "Zadaj nazov skupiny: ";
+            std::cin >> name;
+            bzero(buffer,256);
+            strcat(buffer, (name).c_str());
+
+            std::cin.clear();
+            std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+
+            strcat(buffer, " ");
+            strcat(buffer, (d->name).c_str());
+            std::string message;
+            cout << "Pre ukoncenie pridavania pouzivatelov stlate 'q'" << endl;
+
+            while(message != "q"){
+                cout  << "Zadajte meno pouzivatela: ";
+                getline(cin, message);
+                if(message != "q"){
+                    strcat(buffer, " ");
+                    strcat(buffer, (message).c_str());
+                }
+            }
+            n = write(d->socket, buffer, strlen(buffer));
+            if (n < 0){perror("Error writing to socket");return nullptr;}
 
         } else if(answer == 5){
             bzero(buffer,256);
@@ -371,20 +396,22 @@ void* chatApp(void *data){
                     }
                 }
             }
-
-        } else if(answer == 8){
+        } else if(answer == 8 || answer == 9){
             bzero(buffer,256);
-            buffer[0] = '8';
+            buffer[0] = (answer == 8) ? '8' : '9';
             n = write(d->socket, buffer, strlen(buffer));
             if (n < 0){perror("Error writing to socket");return nullptr;}
-            sleep(1);
 
             std::string name;
-            std::cout << "S kym chces pisat? ";
+            if(answer == 8){
+                std::cout << "S kym chces pisat? ";
+            } else if(answer==9){
+                std::cout << "Zadaj nazov skupiny: ";
+            }
             std::cin >> name;
             if(name == d->name){
-                std::cout << "Nemozes si pisat sam so sebou" << std::endl;
-            } else {
+                std::cout << "Spravy pisane samemu sebe sa neukladaju!!!" << std::endl;
+            }
             std::cin.clear();
             std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
 
@@ -411,7 +438,42 @@ void* chatApp(void *data){
 
             pthread_join(sendThread, NULL);
             pthread_join(recieveThread, NULL);
-            }
+        }  else if(answer == 9){
+            bzero(buffer,256);
+            buffer[0] = '9';
+            n = write(d->socket, buffer, strlen(buffer));
+            if (n < 0){perror("Error writing to socket");return nullptr;}
+
+            std::string name;
+            std::cout << "Zadaj nazov skupiny: ";
+            std::cin >> name;
+
+            std::cin.clear();
+            std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+
+            bzero(buffer,256);
+            strcat(buffer, (name).c_str());
+            strcat(buffer, " ");
+            strcat(buffer, (d->name).c_str());
+            n = write(d->socket, buffer, strlen(buffer));
+            if (n < 0){perror("Error writing to socket");return nullptr;}
+
+            std::cout << "Pises si v skupine " << name << ", ak chces konverzaciu ukoncit stlac 'q'" << std::endl;
+            std::cout << "Vase spravy:" <<  std::endl;
+
+            char messages[1024];
+            bzero(messages,1024);
+            n = read(d->socket, messages, 1023);
+            if (n < 0){perror("Error reading from socket");return nullptr;}
+            //Vsetky predchadzajuce spravy
+            std::cout << messages << std::endl;
+
+            pthread_t sendThread, recieveThread;
+            pthread_create(&sendThread, NULL, &sendMessage, d);
+            pthread_create(&recieveThread, NULL, &recieveMessage, d);
+
+            pthread_join(sendThread, NULL);
+            pthread_join(recieveThread, NULL);
         }
         std::cin.clear();
         std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
