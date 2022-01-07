@@ -9,6 +9,7 @@
 
 #include <string>
 #include <iostream>
+#include <fstream>
 #include <limits>
 #include <curses.h>
 #include <pthread.h>
@@ -198,12 +199,13 @@ void* chatApp(void *data){
         std::cout << "1 - Zrusenie uctu" << std::endl;
         std::cout << "2 - Odhlasenie" << std::endl;
         std::cout << "3 - Poslat subor" << std::endl;
-        std::cout << "4 - Vytvorit skupinovu konverzaciu" << std::endl;
-        std::cout << "5 - Pridat kontakt" << std::endl;
-        std::cout << "6 - Odobrat kontakt" << std::endl;
-        std::cout << "7 - Zobrazit kontakty" << std::endl;
-        std::cout << "8 - Otvorit chat" << std::endl;
-        std::cout << "9 - Otvorit skupinovy chat" << std::endl;
+        std::cout << "4 - Prijat subor" << std::endl;
+        std::cout << "5 - Vytvorit skupinovu konverzaciu" << std::endl;
+        std::cout << "6 - Pridat kontakt" << std::endl;
+        std::cout << "7 - Odobrat kontakt" << std::endl;
+        std::cout << "8 - Zobrazit kontakty" << std::endl;
+        std::cout << "9 - Otvorit Chat" << std::endl;
+        std::cout << "10 - Otvorit skupinovy chat" << std::endl;
         std::cout << "-----------------------------------------" << std::endl;
 
         std::cin >> answer;
@@ -232,42 +234,96 @@ void* chatApp(void *data){
             buffer[0] = '3';
             n = write(d->socket, buffer, strlen(buffer));
             if (n < 0){perror("Error writing to socket");return nullptr;}
+            usleep(100);
+
+            string myname = d->name;
+            n = write(d->socket, myname.c_str(), strlen(myname.c_str()));
+            if (n < 0){perror("Error writing to socket");return nullptr;}
+            usleep(100);
 
             std::string name;
             char filename[256];
             char filename2[256];
             FILE *f;
-
+            cout << "Komu chces poslat subor? ";
+            cin >> name;
+            n = write(d->socket, name.c_str(), strlen(name.c_str()));
+            if (n < 0){perror("Error writing to socket");return nullptr;}
+            usleep(100);
             cout << "Zadaj nazov suboru: ";
             std::cin >> filename2;
             bzero(filename, 256);
             strcat(filename, "../");
             strcat(filename, filename2);
+            write(d->socket, filename2, 255);
+            usleep(100);
             int words = 0;
             char c;
             bzero(buffer, 256);
-            cout << filename << endl;
             f = fopen(filename, "r");
-            while((c = getc(f)) != EOF){
-                fscanf(f, "%s", buffer);
-                if (isspace(c) || c == '\t')
-                    words++;
+            if (f != NULL) {
+                while((c = getc(f)) != EOF){
+                    fscanf(f, "%s", buffer);
+                    if (isspace(c) || c == '\t' || c == '\n')
+                        words++;
+                }
+                words++;
+                write(d->socket, &words, sizeof(int));
+                usleep(100);
+                rewind(f);
+                char ch;
+                while (ch != EOF){
+                    fscanf(f, "%s", buffer);
+                    write(d->socket, buffer, 255);
+                    usleep(100);
+                    ch = fgetc(f);
+                }
+                cout << "Subor uspesne poslany na server" << endl;
+            } else {
+                cout << "Takyto subor neexistuje!" << endl;
             }
-            cout << words << endl;
-            write(d->socket, &words, sizeof(int));
-            rewind(f);
-            cout << words << endl;
-            char ch;
-            while (ch != EOF){
-                fscanf(f, "%s", buffer);
-                cout << buffer << endl;
-                write(d->socket, buffer, 255);
-                ch = fgetc(f);
-            }
-            cout << "Subor uspesne poslany na server" << endl;
         } else if(answer == 4){
             bzero(buffer,256);
             buffer[0] = '4';
+            n = write(d->socket, buffer, strlen(buffer));
+            cout << "Zadaj nazov suboru: ";
+            string filename;
+            cin >> filename;
+            bzero(buffer, 255);
+            strcat(buffer, "../server/files/");
+            strcat(buffer, filename.c_str());
+            write(d->socket, buffer, 255);
+            usleep(100);
+            bzero(buffer, 255);
+            n = read(d->socket, buffer, 255);
+            if (n < 0){perror("Error writing to socket");return nullptr;}
+            if (strcmp(buffer, "0") == 0) {
+                bzero(buffer, 255);
+                strcat(buffer, "../klient/files/");
+                strcat(buffer, filename.c_str());
+                std::ofstream myfile;
+                myfile.open(buffer);
+                bzero(buffer, 255);
+                int words;
+                read(d->socket, &words, 255);
+                bzero(buffer, 255);
+                int ch = 0;
+                while(ch != words){
+                    read(d->socket, buffer, 255);
+                    //fprintf(fp, "%s", buffer);
+                    if (myfile.is_open()) {
+                        myfile << buffer << " ";
+                    } else std::cout << "Unable to open file";
+                    ch++;
+                }
+                myfile.close();
+            } else {
+                cout << "Nikto ti neposlal taky subor..." << endl;
+            }
+
+        } else if(answer == 5){
+            bzero(buffer,256);
+            buffer[0] = '5';
             n = write(d->socket, buffer, strlen(buffer));
             if (n < 0){perror("Error writing to socket");return nullptr;}
 
@@ -296,9 +352,9 @@ void* chatApp(void *data){
             n = write(d->socket, buffer, strlen(buffer));
             if (n < 0){perror("Error writing to socket");return nullptr;}
 
-        } else if(answer == 5){
+        } else if(answer == 6){
             bzero(buffer,256);
-            buffer[0] = '5';
+            buffer[0] = '6';
             n = write(d->socket, buffer, strlen(buffer));
             if (n < 0){perror("Error writing to socket");return nullptr;}
 
@@ -321,9 +377,9 @@ void* chatApp(void *data){
                 cout << "Zadany pouzivatel neexistuje" << endl;
             }
 
-        } else if(answer == 6){
+        } else if(answer == 7){
             bzero(buffer,256);
-            buffer[0] = '6';
+            buffer[0] = '7';
             n = write(d->socket, buffer, strlen(buffer));
             if (n < 0){perror("Error writing to socket");return nullptr;}
 
@@ -345,9 +401,9 @@ void* chatApp(void *data){
             } else {
                 cout << "Zadaneho pouzivatela nemate v kontaktoch" << endl;
             }
-        } else if(answer == 7){
+        }  else if(answer == 8){
             bzero(buffer,256);
-            buffer[0] = '7';
+            buffer[0] = '8';
             n = write(d->socket, buffer, strlen(buffer));
             if (n < 0){perror("Error writing to socket");return nullptr;}
             sleep(1);
@@ -396,16 +452,20 @@ void* chatApp(void *data){
                     }
                 }
             }
-        } else if(answer == 8 || answer == 9){
+        } else if(answer == 9 || answer == 10){
             bzero(buffer,256);
-            buffer[0] = (answer == 8) ? '8' : '9';
+            if(answer == 9){
+                buffer[0] = '9';
+            } else if(answer == 10){
+                strcat(buffer, "10");
+            }
             n = write(d->socket, buffer, strlen(buffer));
             if (n < 0){perror("Error writing to socket");return nullptr;}
 
             std::string name;
-            if(answer == 8){
+            if(answer == 9){
                 std::cout << "S kym chces pisat? ";
-            } else if(answer==9){
+            } else if(answer==10){
                 std::cout << "Zadaj nazov skupiny: ";
             }
             std::cin >> name;
@@ -423,42 +483,6 @@ void* chatApp(void *data){
             if (n < 0){perror("Error writing to socket");return nullptr;}
 
             std::cout << "Pises si s " << name << ", ak chces konverzaciu ukoncit stlac 'q'" << std::endl;
-            std::cout << "Vase spravy:" <<  std::endl;
-
-            char messages[1024];
-            bzero(messages,1024);
-            n = read(d->socket, messages, 1023);
-            if (n < 0){perror("Error reading from socket");return nullptr;}
-            //Vsetky predchadzajuce spravy
-            std::cout << messages << std::endl;
-
-            pthread_t sendThread, recieveThread;
-            pthread_create(&sendThread, NULL, &sendMessage, d);
-            pthread_create(&recieveThread, NULL, &recieveMessage, d);
-
-            pthread_join(sendThread, NULL);
-            pthread_join(recieveThread, NULL);
-        }  else if(answer == 9){
-            bzero(buffer,256);
-            buffer[0] = '9';
-            n = write(d->socket, buffer, strlen(buffer));
-            if (n < 0){perror("Error writing to socket");return nullptr;}
-
-            std::string name;
-            std::cout << "Zadaj nazov skupiny: ";
-            std::cin >> name;
-
-            std::cin.clear();
-            std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-
-            bzero(buffer,256);
-            strcat(buffer, (name).c_str());
-            strcat(buffer, " ");
-            strcat(buffer, (d->name).c_str());
-            n = write(d->socket, buffer, strlen(buffer));
-            if (n < 0){perror("Error writing to socket");return nullptr;}
-
-            std::cout << "Pises si v skupine " << name << ", ak chces konverzaciu ukoncit stlac 'q'" << std::endl;
             std::cout << "Vase spravy:" <<  std::endl;
 
             char messages[1024];
