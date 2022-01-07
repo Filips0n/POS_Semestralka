@@ -32,6 +32,7 @@ void showUsers() {
         std::cout << x.first << " " << x.second << std::endl;
     std::cout << "--------------------" << std::endl;
 }
+
 void* loadData(std::string filename, std::unordered_map<std::string, std::string> &pStructure) {
     pStructure.clear();
     std::ifstream infile(filename);
@@ -51,7 +52,27 @@ void* loadData(std::string filename, std::unordered_map<std::string, std::string
     }
     return nullptr;
 }
-
+int deleteData(std::string filename, std::unordered_map<std::string, std::string> &pStructure, char* pDeleteLine){
+    int deleteOk = 0;
+    std::ifstream infile(filename);
+    std::ofstream temp;
+    temp.open("../temp.txt");
+    std::string deleteLine = std::string(pDeleteLine);
+    string line;
+    while(getline(infile, line)){
+        if ((line != deleteLine) && (line.find(deleteLine) == std::string::npos)) {
+            temp << line << std::endl;
+        } else {
+            deleteOk = 1;
+        }
+    }
+    infile.close();
+    temp.close();
+    remove(filename.c_str());
+    rename("../temp.txt", filename.c_str());
+    loadData(filename, pStructure);
+    return deleteOk;
+}
 void* saveData(std::string filename, std::unordered_map<std::string, std::string> &pStructure, std::string data1, std::string data2){
     std::ofstream myfile;
     myfile.open(filename,std::ios::app);
@@ -125,29 +146,6 @@ int logIn(int *newsockfd){
     return 0;
 }
 
-int deleteData(std::string filename, std::unordered_map<std::string, std::string> &pStructure, char* pDeleteLine){
-    int deleteOk = 0;
-    std::ifstream infile(filename);
-    std::ofstream temp;
-    temp.open("../temp.txt");
-    std::string deleteLine = std::string(pDeleteLine);
-    string line;
-    while(getline(infile, line)){
-        if (line != deleteLine) {
-            temp << line << std::endl;
-        } else {
-            deleteOk = 1;
-        }
-
-    }
-    infile.close();
-    temp.close();
-    remove(filename.c_str());
-    rename("../temp.txt", filename.c_str());
-    loadData(filename, pStructure);
-    return deleteOk;
-}
-
 int findRecieverSocket(std::string name){
     int socket = 0;
     for (auto x : sockets){
@@ -202,23 +200,24 @@ void* chatWithUser(int &newsockfd){
 
     n = write(newsockfd, oldMessages, strlen(oldMessages));
     if (n < 0){perror("Error writing to socket");return nullptr;}
-
+    bzero(message,256);
     while(strcmp(message, "q")!=0){
         bzero(message,256);
         n = read(newsockfd, message, 255);
         if(strcmp(message, "q")!=0){
             saveMessage(recieverSender, message);
+            char message2[256];
+            strcpy(message2, sender.c_str());
+            strcat(message2, " ");
+            strcat(message2, message);
+            int recieveSocket = findRecieverSocket(reciever);
+            if(recieveSocket != 0){
+                n = write(recieveSocket, message2, strlen(message2));
+                if (n < 0){perror("Error writing to socket");return nullptr;}
+            }
         } else {
+            //ukoncenie cakania na read v recieveMessage
             n = write(newsockfd, message, strlen(message));
-            if (n < 0){perror("Error writing to socket");return nullptr;}
-        }
-        char message2[256];
-        strcpy(message2, sender.c_str());
-        strcat(message2, " ");
-        strcat(message2, message);
-        int recieveSocket = findRecieverSocket(reciever);
-        if(recieveSocket != 0){
-            n = write(recieveSocket, message2, strlen(message2));
             if (n < 0){perror("Error writing to socket");return nullptr;}
         }
     }
@@ -285,6 +284,7 @@ void* showContacts(int &newsockfd){
         while(strcmp(message, "q")!=0){
             bzero(message,256);
             n = read(newsockfd, message, 255);
+
             if((strcmp(message, "q")!=0)){
                 std::string name = std::string((char *)strtok(message," "));
                 std::string accept = std::string((char *)strtok(NULL,"\n"));
@@ -293,8 +293,8 @@ void* showContacts(int &newsockfd){
                 //odstranim kontakt, ak je a ako ano, znovu pridam kontakt uz bez 'r'
                 bzero(deleteLine, 256);
                 strcat(deleteLine, ("r " + myName + " " + name).c_str());
-
                 deleteData(fileContacts, contacts, deleteLine);
+
                 if(accept.compare("a")==0){
                     saveData(fileContacts, contacts, myName, name);
                 }
@@ -365,23 +365,28 @@ void* chatApp(void *data){
             if (n < 0){perror("Error reading from socket");return nullptr;}
 
             deleteData(fileUsers, users, buffer);
+
+            cout << buffer << endl;
+            std::string myName = std::string((char *)strtok(buffer," "));
+            cout << myName << endl;
+            char deleteLine[256];
+            bzero(deleteLine, 256);
+            strcat(deleteLine, (myName).c_str());
+            deleteData(fileContacts, contacts, deleteLine);
         } else if(strcmp(buffer, "2")==0) {
             logOut = true;
         } else if(strcmp(buffer, "3")==0) {
             FILE *fp;
-            char *filename = (char*)"../recv.txt";
-            char buffer[SIZE];
 
-            bzero(buffer,256);
-            n = read(newsockfd, buffer, 255);
-            if (n < 0){perror("Error reading from socket");return nullptr;}
-
-            fp = fopen(filename, "w");
-            while (1) {
-                n = recv(findRecieverSocket(buffer), buffer, SIZE, 0);
-                if (n <= 0){break;}
+            int ch = 0;
+            fp = fopen("../received.txt", "a");
+            int words;
+            read(newsockfd, &words, sizeof(int));
+            bzero(buffer, 255);
+            while(ch != words){
+                read(newsockfd, buffer, 255);
                 fprintf(fp, "%s", buffer);
-                bzero(buffer, SIZE);
+                ch++;
             }
             printf("[+]Data written in the file successfully.\n");
 
