@@ -493,15 +493,14 @@ void* chatApp(void *data){
             while(ch != words){
                 n = read(newsockfd, buffer, 255);
                 if (n < 0){perror("Error writing to socket");return nullptr;}
-                cout << "-----------" << buffer << endl;
-                //fprintf(fp, "%s", buffer);
                 if (myfile.is_open()) {
                     myfile << buffer << " ";
                 } else std::cout << "Unable to open file";
                 ch++;
             }
             myfile.close();
-            printf("[+]Data written in the file successfully.\n");
+            //printf("[+]Data written in the file successfully.\n");
+
             char message[256];
             bzero(message,256);
             char recieverSender[256];
