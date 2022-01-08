@@ -149,7 +149,6 @@ int deleteData(std::string filename, std::unordered_map<std::string, std::string
     temp.open("../temp.txt");
     std::string deleteLine = std::string(pDeleteLine);
     std::string line;
-    cout << deleteLine << endl;
     while(getline(infile, line)){
         if ((line != deleteLine) && (line.find(deleteLine) == std::string::npos)) {
             temp << line << std::endl;
@@ -340,6 +339,41 @@ void* showContacts(int &newsockfd){
     }
     return nullptr;
 }
+void* showRequests(int &newsockfd) {
+    int n;
+    char requests[SIZE];
+    char buffer[256];
+    bzero(buffer,256);
+    bzero(requests,256);
+    cout << "cakam na meno server" << endl;
+    n = read(newsockfd, buffer, 255);
+    cout << "server mam meno idem dalej" << endl;
+    std::ifstream infile(fileContacts);
+    std::string s;
+    int numberOfRequests = 0;
+    while(getline(infile, s)){
+        std::stringstream stringLine(s);
+        getline( stringLine, s, ' ' );
+        if (s.compare("r") == 0){
+            getline( stringLine, s, ' ' );
+            if (strcmp(buffer, s.c_str())==0){
+                strcat(requests, "r ");
+                getline( stringLine, s, ' ' );
+                strcat(requests, s.c_str());
+                strcat(requests, "\n");
+                numberOfRequests++;
+            }
+        }
+    }
+    infile.close();
+    usleep(100);
+    if(numberOfRequests == 0) {
+        strcat(requests, "0");
+    }
+    cout << "server posielam requesty " << endl;
+    n = write(newsockfd, requests, strlen(requests));
+    if (n < 0){perror("Error writing to socket");return nullptr;}
+}
 void* deleteContact(int &newsockfd){
     std::string success = "0";
     char message[256];
@@ -496,6 +530,7 @@ void* chatApp(void *data){
     /*--------------------------------------------*/
     bool logOut = false;
     bool deleteAcc = false;
+    showRequests(newsockfd);
     while(!logOut && !deleteAcc){
         bzero(buffer,256);
         n = read(newsockfd, buffer, 255);
@@ -505,7 +540,6 @@ void* chatApp(void *data){
             ////Continue
             continueSocket(newsockfd);
             //////////////
-
             deleteAcc = true;
             bzero(buffer,256);
             n = read(newsockfd, buffer, 255);
