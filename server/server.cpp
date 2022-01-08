@@ -33,12 +33,13 @@ std::unordered_map<std::string, std::string> contacts;
 std::unordered_map<std::string, std::string> chatWith;
 std::unordered_map<std::string, std::vector<std::string>> groups;
 
-int checkIfUserExists(std::string name){
-    for (auto x : users){
-        if (x.first == name)
-            return 1;
-    }
-    return 0;
+void* continueSocket(int &newsockfd){
+    int n;
+    char buffer[256];
+    bzero(buffer,256);
+    strcat(buffer, "continue");
+    n = write(newsockfd, buffer, strlen(buffer)-1);
+    if (n < 0){perror("Error writing to socket");return nullptr;}
 }
 
 int checkUserInContacts(std::string myName, std::string name){
@@ -48,7 +49,6 @@ int checkUserInContacts(std::string myName, std::string name){
     }
     return 0;
 }
-
 int checkLoggedInUsers(std::string myName){
     for (auto x : sockets){
         if (x.first == myName)
@@ -149,6 +149,7 @@ int deleteData(std::string filename, std::unordered_map<std::string, std::string
     temp.open("../temp.txt");
     std::string deleteLine = std::string(pDeleteLine);
     std::string line;
+    cout << deleteLine << endl;
     while(getline(infile, line)){
         if ((line != deleteLine) && (line.find(deleteLine) == std::string::npos)) {
             temp << line << std::endl;
@@ -267,7 +268,9 @@ void* showContacts(int &newsockfd){
     bzero(oldContacts,SIZE);
     bzero(requestContacts,SIZE);
     bzero(buffer,256);
-
+    ////Continue
+    continueSocket(newsockfd);
+    //////////////
     n = read(newsockfd, buffer, 255);
     std::ifstream infile(fileContacts);
     std::string s;
@@ -363,7 +366,6 @@ void* deleteContact(int &newsockfd){
 }
 
 void* chat(int &newsockfd, bool user){
-    getAllContacts(se)
     char recieverSender[256];
     char recieverSender2[256];
     char message[256];
@@ -380,16 +382,16 @@ void* chat(int &newsockfd, bool user){
     std::string reciever = std::string((char *)strtok(recieverSender2," "));
     std::string sender = std::string((char *)strtok(NULL,"\n"));
     ////////////////////////
+    int ok = 1;
     if(user == true){
-        int ok = checkUserInContacts(sender, reciever)==0 ? 1 : 0;
-        cout << ok << endl;
-        n = write(newsockfd, &ok, sizeof(int));
-        if (n < 0){perror("Error writing to socket");return nullptr;}
-        if(ok == 1) {return nullptr;}
+        ok = checkUserInContacts(sender, reciever);
     }
+    n = write(newsockfd, &ok, sizeof(int));
+    if (n < 0){perror("Error writing to socket");return nullptr;}
+    if(ok == 0) {return nullptr;}
     //////////////////////////
     chatWith[sender] = reciever;
-
+    cout << "nacitavam spravy" << endl;
     std::ifstream infile(fileMessages);
     std::string s;
     int numberOfMessages = 0;
@@ -425,7 +427,12 @@ void* chat(int &newsockfd, bool user){
     if(numberOfMessages <= 0){
         strcat(oldMessages, "Prazdna historia\n");
     }
-
+    ///Wait
+    char buffer[256];
+    bzero(buffer,256);
+    n = read(newsockfd, buffer, 255);
+    if (n < 0){perror("Error reading from socket");return nullptr;}
+    ///////////
     n = write(newsockfd, oldMessages, strlen(oldMessages));
     if (n < 0){perror("Error writing to socket");return nullptr;}
 
@@ -495,6 +502,10 @@ void* chatApp(void *data){
         if (n < 0){perror("Error reading from socket");return nullptr;}
 
         if(strcmp(buffer, "1")==0){
+            ////Continue
+            continueSocket(newsockfd);
+            //////////////
+
             deleteAcc = true;
             bzero(buffer,256);
             n = read(newsockfd, buffer, 255);
@@ -502,9 +513,7 @@ void* chatApp(void *data){
 
             deleteData(fileUsers, users, buffer);
 
-            std::cout << buffer << std::endl;
             std::string myName = std::string((char *)strtok(buffer," "));
-            std::cout << myName << std::endl;
             char deleteLine[256];
             bzero(deleteLine, 256);
             strcat(deleteLine, (myName).c_str());
@@ -512,6 +521,9 @@ void* chatApp(void *data){
             sockets.erase(myName);
 
         } else if(strcmp(buffer, "2")==0) {
+            ////Continue
+            continueSocket(newsockfd);
+            //////////////
             logOut = true;
             bzero(buffer, 255);
             n = read(newsockfd, buffer, 255);
@@ -520,6 +532,9 @@ void* chatApp(void *data){
             sockets.erase(myName);
 
         } else if(strcmp(buffer, "3")==0) {
+            ////Continue
+            continueSocket(newsockfd);
+            //////////////
             int ch = 0;
             string sender;
             bzero(buffer, 255);
@@ -527,62 +542,81 @@ void* chatApp(void *data){
             if (n < 0){perror("Error writing to socket");return nullptr;}
             sender = std::string(buffer);
             string reciever;
+            ////Continue
+            continueSocket(newsockfd);
+            //////////////
             bzero(buffer, 255);
             n = read(newsockfd, buffer, 255);
             if (n < 0){perror("Error writing to socket");return nullptr;}
-
             reciever = std::string(buffer);
-            string filename;
-            bzero(buffer, 255);
-            n = read(newsockfd, buffer, 255);
+            ////////////////////////
+            int ok = 1;
+            cout << sender << " " << reciever << endl;
+            ok = checkUserInContacts(sender, reciever);
+            n = write(newsockfd, &ok, sizeof(int));
             if (n < 0){perror("Error writing to socket");return nullptr;}
-
-            filename = std::string(buffer);
-            char filename2[256];
-            strcat(filename2, "../server/files/");
-            strcat(filename2, filename.c_str());
-            std::ofstream myfile;
-            myfile.open(filename2);
-            bzero(buffer, 255);
-            int words;
-            read(newsockfd, &words, 255);
-            bzero(buffer, 255);
-
-            while(ch != words){
+            if(ok == 1) {
+            //////////////////////////
+                string filename;
+                bzero(buffer, 255);
                 n = read(newsockfd, buffer, 255);
                 if (n < 0){perror("Error writing to socket");return nullptr;}
-                if (myfile.is_open()) {
-                    myfile << buffer << " ";
-                } else std::cout << "Unable to open file";
-                ch++;
-            }
-            myfile.close();
-            //printf("[+]Data written in the file successfully.\n");
+                ////Continue
+                continueSocket(newsockfd);
+                //////////////
+                filename = std::string(buffer);
+                char filename2[256];
+                strcat(filename2, "../server/files/");
+                strcat(filename2, filename.c_str());
+                std::ofstream myfile;
+                myfile.open(filename2);
+                bzero(buffer, 255);
+                int words;
+                read(newsockfd, &words, 255);
+                ////Continue
+                continueSocket(newsockfd);
+                //////////////
+                bzero(buffer, 255);
+                while(ch != words){
+                    n = read(newsockfd, buffer, 255);
+                    ////Continue
+                    continueSocket(newsockfd);
+                    //////////////
+                    cout << buffer << endl;
+                    if (n < 0){perror("Error writing to socket");return nullptr;}
+                    if (myfile.is_open()) {
+                        myfile << buffer << " ";
+                    } else std::cout << "Unable to open file";
+                    ch++;
+                }
+                myfile.close();
+                //printf("[+]Data written in the file successfully.\n");
 
-            char message[256];
-            bzero(message,256);
-            char recieverSender[256];
-            bzero(recieverSender,256);
-            strcat(recieverSender, reciever.c_str());
-            strcat(recieverSender, " ");
-            strcat(recieverSender, sender.c_str());
+                char message[256];
+                bzero(message,256);
+                char recieverSender[256];
+                bzero(recieverSender,256);
+                strcat(recieverSender, reciever.c_str());
+                strcat(recieverSender, " ");
+                strcat(recieverSender, sender.c_str());
 
-            strcat(message, "Poslal som ti subor ");
-            strcat(message, filename.c_str());
-            saveMessage(recieverSender, message);
-            int recieveSocket = findRecieverSocket(reciever);
-            if(recieveSocket != 0) {
-                n = write(recieveSocket, message, strlen(message));
-                if (n < 0) {
-                    perror("Error writing to socket");
-                    return nullptr;
+                strcat(message, "Poslal som ti subor ");
+                strcat(message, filename.c_str());
+                saveMessage(recieverSender, message);
+                int recieveSocket = findRecieverSocket(reciever);
+                if(recieveSocket != 0) {
+                    n = write(recieveSocket, message, strlen(message));
+                    if (n < 0) {
+                        perror("Error writing to socket");
+                        return nullptr;
+                    }
                 }
             }
         } else if(strcmp(buffer, "4")==0) {
             bzero(buffer,256);
             n = read(newsockfd, buffer, 255);
             if (n < 0){perror("Error writing to socket");return nullptr;}
-            int words = 1;
+            int words = 0;
             char c;
             FILE *f;
             f = fopen(buffer, "r");
@@ -672,6 +706,7 @@ int connection(void *data, int server){
 int main(int argc, char *argv[])
 {
     loadData(fileUsers, users);
+    loadData(fileContacts, contacts);
     loadGroupChats();
     //------------------------------------------//
     pthread_t threadsApp[users.size()+3];
