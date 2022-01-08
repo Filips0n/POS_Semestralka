@@ -184,7 +184,33 @@ void* recieveMessage(void *data){
     }
     return nullptr;
 }
+void* showRequests(void *data) {
+    DATA *d = (DATA *)data;
+    char buffer[256];
+    int n;
+    bzero(buffer,256);
+    strcat(buffer, d->name.c_str());
+    n = write(d->socket, buffer, 255);
+    if (n < 0){perror("Error writing to socket");return nullptr;}
 
+    char requests[SIZE];
+    bzero(requests,SIZE);
+    n = read(d->socket, requests, SIZE-1);
+    if (n < 0){perror("Error reading from socket");return nullptr;}
+    if (strcmp(requests, "0") != 0) {
+        const std::string t = "Ziadost o kontakt od ";
+        const std::string s = "r ";
+        std::string req(requests);
+        std::string::size_type n = 0;
+        while ( ( n = req.find( s, n ) ) != std::string::npos )
+        {
+            req.replace( n, s.size(), t );
+            n += t.size();
+        }
+        cout << req << endl;
+        cout << "Ak chces prijat/odmietnut ziadosti tak zvol moznost 8 - Zobrazit kontakty..." << endl;
+    }
+}
 int checkContact(void *data, std::string name){
     DATA *d = (DATA *)data;
     char buffer[256];
@@ -208,7 +234,7 @@ void* chatApp(void *data){
     if (logInRegisterAcc(d->socket, d) == 0){
         return nullptr;
     }
-
+    showRequests(d);
     while(!logOut && !deleteAcc){
         int answer;
         bzero(buffer,256);
