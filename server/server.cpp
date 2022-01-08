@@ -40,6 +40,7 @@ void* continueSocket(int &newsockfd){
     strcat(buffer, "continue");
     n = write(newsockfd, buffer, strlen(buffer)-1);
     if (n < 0){perror("Error writing to socket");return nullptr;}
+    return nullptr;
 }
 
 int checkUserInContacts(std::string myName, std::string name){
@@ -111,11 +112,9 @@ void* saveGroupChat(int &newsockfd){
     myfile.open(fileGroups,std::ios::app);
     if (myfile.is_open()) {
         myfile << name;
-        std::cout << name << " ";
         for (int i = 0; i < wordCount-1; ++i) {
             name = std::string((char *)strtok(NULL," "));
             myfile << " " << name;
-            std::cout << name << " ";
         }
     } else std::cout << "Unable to open file";
     myfile << "\n";
@@ -340,39 +339,72 @@ void* showContacts(int &newsockfd){
     return nullptr;
 }
 void* showRequests(int &newsockfd) {
+    vector<std::string> deleteLines;
     int n;
     char requests[SIZE];
     char buffer[256];
     bzero(buffer,256);
-    bzero(requests,256);
-    cout << "cakam na meno server" << endl;
+    bzero(requests,SIZE);
     n = read(newsockfd, buffer, 255);
-    cout << "server mam meno idem dalej" << endl;
     std::ifstream infile(fileContacts);
     std::string s;
+    std::string rd;
+    std::string deleteLine;
     int numberOfRequests = 0;
+    int numberOfDeletions = 0;
     while(getline(infile, s)){
         std::stringstream stringLine(s);
         getline( stringLine, s, ' ' );
-        if (s.compare("r") == 0){
+        if(s.compare("d") == 0){deleteLine="d ";};
+        if (s.compare("r") == 0 || s.compare("d") == 0){
+            rd = s;
             getline( stringLine, s, ' ' );
+            if(rd.compare("d") == 0){deleteLine+=s; deleteLine+=" ";};
             if (strcmp(buffer, s.c_str())==0){
-                strcat(requests, "r ");
+                if(rd.compare("r") == 0){
+                    numberOfRequests++;
+                    strcat(requests, "r ");
+                } else {
+                    numberOfDeletions++;
+                    strcat(requests, "d ");
+                }
                 getline( stringLine, s, ' ' );
+                if(rd.compare("d") == 0){deleteLine+=s; deleteLines.push_back(deleteLine);};
                 strcat(requests, s.c_str());
                 strcat(requests, "\n");
-                numberOfRequests++;
             }
         }
     }
     infile.close();
-    usleep(100);
-    if(numberOfRequests == 0) {
-        strcat(requests, "0");
+
+    for (auto i = deleteLines.begin(); i != deleteLines.end(); ++i){
+        deleteLine = *i;
+        deleteData(fileContacts, contacts, const_cast<char*>(deleteLine.c_str()));
     }
-    cout << "server posielam requesty " << endl;
+
+    usleep(100);
+    if(strlen(requests) == 0) {strcat(requests, "0");}
     n = write(newsockfd, requests, strlen(requests));
     if (n < 0){perror("Error writing to socket");return nullptr;}
+    bzero(requests,SIZE);
+    ///Wait
+    bzero(buffer,256);
+    n = read(newsockfd, buffer, 255);
+    if (n < 0){perror("Error reading from socket");return nullptr;}
+    ///////////
+    if(numberOfRequests == 0 && numberOfDeletions == 0) {
+        strcat(requests, "0");
+    } else if(numberOfRequests > 0 && numberOfDeletions > 0){
+        strcat(requests, "ReqDel");
+    } else if(numberOfRequests > 0 && numberOfDeletions <= 0){
+        strcat(requests, "Req");
+    } else if(numberOfRequests <= 0 && numberOfDeletions > 0){
+        strcat(requests, "Del");
+    }
+    if(strlen(requests) == 0) {strcat(requests, "0");}
+    n = write(newsockfd, requests, strlen(requests));
+    if (n < 0){perror("Error writing to socket");return nullptr;}
+    return nullptr;
 }
 void* deleteContact(int &newsockfd){
     std::string success = "0";
@@ -393,7 +425,7 @@ void* deleteContact(int &newsockfd){
         strcat(deleteLine, (delName + " " + myName).c_str());
         success = std::to_string(deleteData(fileContacts, contacts, deleteLine));
     }
-
+    saveData(fileContacts, contacts, "d " + delName, myName);
     n = write(newsockfd, success.c_str(), strlen(success.c_str()));
     if (n < 0){perror("Error writing to socket");return nullptr;}
     return nullptr;
@@ -425,7 +457,7 @@ void* chat(int &newsockfd, bool user){
     if(ok == 0) {return nullptr;}
     //////////////////////////
     chatWith[sender] = reciever;
-    cout << "nacitavam spravy" << endl;
+
     std::ifstream infile(fileMessages);
     std::string s;
     int numberOfMessages = 0;
@@ -502,7 +534,6 @@ void* chat(int &newsockfd, bool user){
         }
     }
     chatWith[sender] = "";
-    cout << "Koniec Konverzacie " << sender << "s " << reciever << endl;
     return nullptr;
 }
 
@@ -523,9 +554,9 @@ void* chatApp(void *data){
     if (n < 0){perror("Error reading from socket");return nullptr;}
 
     if (strcmp(buffer, "a")==0){
-        if(logIn(&newsockfd)==0){close(newsockfd);cout << "koniec spojenia" << endl;return nullptr;};
+        if(logIn(&newsockfd)==0){close(newsockfd);return nullptr;};
     } else if(strcmp(buffer, "n")==0){
-        if(registerAcc(&newsockfd)==0){close(newsockfd);cout << "koniec spojenia" << endl;return nullptr;};
+        if(registerAcc(&newsockfd)==0){close(newsockfd);return nullptr;};
     }
     /*--------------------------------------------*/
     bool logOut = false;
@@ -585,7 +616,7 @@ void* chatApp(void *data){
             reciever = std::string(buffer);
             ////////////////////////
             int ok = 1;
-            cout << sender << " " << reciever << endl;
+
             ok = checkUserInContacts(sender, reciever);
             n = write(newsockfd, &ok, sizeof(int));
             if (n < 0){perror("Error writing to socket");return nullptr;}
@@ -616,7 +647,7 @@ void* chatApp(void *data){
                     ////Continue
                     continueSocket(newsockfd);
                     //////////////
-                    cout << buffer << endl;
+
                     if (n < 0){perror("Error writing to socket");return nullptr;}
                     if (myfile.is_open()) {
                         myfile << buffer << " ";

@@ -34,6 +34,7 @@ void* waitSocket(int socket) {
     bzero(buffer,256);
     n = read(socket, buffer, 255);
     if (n < 0){perror("Error reading from socket");return nullptr;}
+    return nullptr;
 }
 
 int logIn(int socket, void *data){
@@ -53,10 +54,10 @@ int logIn(int socket, void *data){
             user->name = strtok(temp," ");
             user->password = strtok(NULL,"\n");
             if(user->name.length() < 3 || user->password.length() < 3){
-                cout << "Zle zadane udaje! Meno aj heslo musia byt dlhsie ako 2 znaky" << endl;
+                std::cout << "Zle zadane udaje! Meno aj heslo musia byt dlhsie ako 2 znaky" << std::endl;
             }
         } else {
-            cout << "Zle zadane udaje! Zadajte v tvare: 'meno' 'heslo'" << endl;
+            std::cout << "Zle zadane udaje! Zadajte v tvare: 'meno' 'heslo'" << std::endl;
         }
     } while(user->name.empty() || user->password.empty() || user->name.length() < 3 || user->password.length() < 3);
 
@@ -80,6 +81,7 @@ int logIn(int socket, void *data){
         std::cout << "Pouzivatel je uz prihlaseny" << std::endl;
         return 0;
     }
+    return 0;
 }
 int registration(int socket, void *data){
     DATA *user = (DATA *)data;
@@ -98,10 +100,10 @@ int registration(int socket, void *data){
             user->name = strtok(temp," ");
             user->password = strtok(NULL,"\n");
             if(user->name.length() < 3 || user->password.length() < 3){
-                cout << "Zle zadane udaje! Meno aj heslo musia byt dlhsie ako 2 znaky" << endl;
+                std::cout << "Zle zadane udaje! Meno aj heslo musia byt dlhsie ako 2 znaky" << std::endl;
             }
         } else {
-            cout << "Zle zadane udaje! Zadajte v tvare: 'meno' 'heslo'" << endl;
+            std::cout << "Zle zadane udaje! Zadajte v tvare: 'meno' 'heslo'" << std::endl;
         }
     } while(user->name.empty() || user->password.empty() || user->name.length() < 3 || user->password.length() < 3);
 
@@ -186,7 +188,7 @@ void* sendMessage(void *data){
     int n;
     std::string message;
     while(message != "q"){
-        cout << d->name << ": ";
+        std::cout << d->name << ": ";
         getline(cin, message);
 
         bzero(buffer,256);
@@ -202,11 +204,10 @@ void* recieveMessage(void *data){
     int n;
     while(strcmp(message, "q")!=0){
         bzero(message,256);
-        //cout << "cakam na spravu" << endl;
         n = read(d->socket, message, 255);
         if (n < 0){perror("Error reading from socket");return nullptr;}
         if (strcmp(message, "q")!=0){
-            cout << strtok(message," ") << ": " << strtok(NULL,"\n") << endl;
+            std::cout << strtok(message," ") << ": " << strtok(NULL,"\n") << std::endl;
         }
     }
     return nullptr;
@@ -220,11 +221,45 @@ void* showRequests(void *data) {
     n = write(d->socket, buffer, 255);
     if (n < 0){perror("Error writing to socket");return nullptr;}
 
+    char requests2[SIZE];
     char requests[SIZE];
-    bzero(requests,SIZE);
-    n = read(d->socket, requests, SIZE-1);
+    bzero(requests2,SIZE);
+    n = read(d->socket, requests2, SIZE-1);
     if (n < 0){perror("Error reading from socket");return nullptr;}
-    if (strcmp(requests, "0") != 0) {
+
+    strcpy(requests, requests2);
+    ///continue
+    bzero(buffer,256);
+    strcat(buffer, "continue");
+    n = write(d->socket, buffer, strlen(buffer)-1);
+    if (n < 0){perror("Error writing to socket");return nullptr;}
+    ////////////
+    bzero(requests2,SIZE);
+    n = read(d->socket, requests2, SIZE-1);
+
+    if (n < 0){perror("Error reading from socket");return nullptr;}
+    if (strcmp(requests2, "ReqDel") == 0) {
+        const std::string t = "Ziadost o kontakt od ";
+        const std::string f = "Z kontaktov si ta odstanil ";
+        const std::string s = "r ";
+        const std::string d = "d ";
+        std::string req(requests);
+        std::string req2(requests);
+        std::string::size_type n = 0;
+        while ( ( n = req.find( d, n ) ) != std::string::npos )
+        {
+            req.replace( n, d.size(), f );
+            n += f.size();
+        }
+        n = 0;
+        while ( ( n = req.find( s, n ) ) != std::string::npos )
+        {
+            req.replace( n, s.size(), t );
+            n += t.size();
+        }
+        std::cout << req << std::endl;
+        std::cout << "Ak chces prijat/odmietnut ziadosti tak zvol moznost 8 - Zobrazit kontakty..." << std::endl;
+    } else if(strcmp(requests2, "Req") == 0){
         const std::string t = "Ziadost o kontakt od ";
         const std::string s = "r ";
         std::string req(requests);
@@ -234,9 +269,21 @@ void* showRequests(void *data) {
             req.replace( n, s.size(), t );
             n += t.size();
         }
-        cout << req << endl;
-        cout << "Ak chces prijat/odmietnut ziadosti tak zvol moznost 8 - Zobrazit kontakty..." << endl;
+        std::cout << req << std::endl;
+        std::cout << "Ak chces prijat/odmietnut ziadosti tak zvol moznost 8 - Zobrazit kontakty..." << std::endl;
+    } else if(strcmp(requests2, "Del") == 0){
+        const std::string f = "Z kontaktov si ta odstanil ";
+        const std::string d = "d ";
+        std::string req(requests);
+        std::string::size_type n = 0;
+        while ( ( n = req.find( d, n ) ) != std::string::npos )
+        {
+            req.replace( n, d.size(), f );
+            n += f.size();
+        }
+        std::cout << req << std::endl;
     }
+    return nullptr;
 }
 
 void* chatApp(void *data){
@@ -306,7 +353,7 @@ void* chatApp(void *data){
             waitSocket(d->socket);
             //////
 
-            string myname = d->name;
+            std::string myname = d->name;
             n = write(d->socket, myname.c_str(), strlen(myname.c_str()));
             if (n < 0){perror("Error writing to socket");return nullptr;}
             ///Wait
@@ -317,8 +364,8 @@ void* chatApp(void *data){
             char filename[256];
             char filename2[256];
             FILE *f;
-            cout << "Komu chces poslat subor? ";
-            cin >> name;
+            std::cout << "Komu chces poslat subor? ";
+            std::cin >> name;
 
             n = write(d->socket, name.c_str(), strlen(name.c_str()));
             if (n < 0){perror("Error writing to socket");return nullptr;}
@@ -327,10 +374,10 @@ void* chatApp(void *data){
             int ok;
             n = read(d->socket, &ok, 255);
             if(ok==0){
-                cout << "Zadany pouzivatel sa nenachadza v kontaktoch" << endl;
+                std::cout << "Zadany pouzivatel sa nenachadza v kontaktoch" << std::endl;
             } else {
             ///////////////////////////////////
-                cout << "Zadaj nazov suboru: ";
+                std::cout << "Zadaj nazov suboru: ";
                 std::cin >> filename2;
                 bzero(filename, 256);
                 strcat(filename, "../");
@@ -358,25 +405,24 @@ void* chatApp(void *data){
                     char ch;
                     while (ch != EOF){
                         fscanf(f, "%s", buffer);
-                        cout << buffer << endl;
                         write(d->socket, buffer, 255);
                         ///Wait
                         waitSocket(d->socket);
                         //////
                         ch = fgetc(f);
                     }
-                    cout << "Subor uspesne poslany na server" << endl;
+                    std::cout << "Subor uspesne poslany na server" << std::endl;
                 } else {
-                    cout << "Takyto subor neexistuje!" << endl;
+                    std::cout << "Takyto subor neexistuje!" << std::endl;
                 }
             }
         } else if(answer == 4){
             bzero(buffer,256);
             buffer[0] = '4';
             n = write(d->socket, buffer, strlen(buffer));
-            cout << "Zadaj nazov suboru: ";
-            string filename;
-            cin >> filename;
+            std::cout << "Zadaj nazov suboru: ";
+            std::string filename;
+            std::cin >> filename;
             bzero(buffer, 255);
             strcat(buffer, "../server/files/");
             strcat(buffer, filename.c_str());
@@ -406,7 +452,7 @@ void* chatApp(void *data){
                 }
                 myfile.close();
             } else {
-                cout << "Nikto ti neposlal taky subor..." << endl;
+                std::cout << "Nikto ti neposlal taky subor..." << std::endl;
             }
 
         } else if(answer == 5){
@@ -427,13 +473,13 @@ void* chatApp(void *data){
             strcat(buffer, " ");
             strcat(buffer, (d->name).c_str());
             std::string message;
-            cout << "Pre ukoncenie pridavania pouzivatelov stlate 'q'" << endl;
+            std::cout << "Pre ukoncenie pridavania pouzivatelov stlate 'q'" << std::endl;
 
             while(message != "q"){
-                cout  << "Zadajte meno pouzivatela: ";
+                std::cout  << "Zadajte meno pouzivatela: ";
                 getline(cin, message);
                 if(message == d->name){
-                    cout << "Uz si clenom skupiny" << endl;
+                    std::cout << "Uz si clenom skupiny" << std::endl;
                 } else {
                     if(message != "q"){
                         strcat(buffer, " ");
@@ -464,9 +510,9 @@ void* chatApp(void *data){
             n = read(d->socket, buffer, 255);
             if (n < 0){perror("Error reading from socket");return nullptr;}
             if(strcmp(buffer,"1")==0){
-                cout << "Ziadost o pridanie kontaktu uspesne poslana" << endl;
+                std::cout << "Ziadost o pridanie kontaktu uspesne poslana" << std::endl;
             } else {
-                cout << "Zadany pouzivatel neexistuje" << endl;
+                std::cout << "Zadany pouzivatel neexistuje" << std::endl;
             }
 
         } else if(answer == 7){
@@ -489,9 +535,9 @@ void* chatApp(void *data){
             n = read(d->socket, buffer, 255);
             if (n < 0){perror("Error reading from socket");return nullptr;}
             if(strcmp(buffer,"1")==0){
-                cout << "Odstranenie kontaktu uspesne" << endl;
+                std::cout << "Odstranenie kontaktu uspesne" << std::endl;
             } else {
-                cout << "Zadaneho pouzivatela nemate v kontaktoch" << endl;
+                std::cout << "Zadaneho pouzivatela nemate v kontaktoch" << std::endl;
             }
         }  else if(answer == 8){
             bzero(buffer,256);
@@ -520,7 +566,7 @@ void* chatApp(void *data){
                 n += t.size();
                 numberOfRequests++;
             }
-            cout << str << endl;
+            std::cout << str << std::endl;
 
             std::cin.clear();
             std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
@@ -529,10 +575,10 @@ void* chatApp(void *data){
             char* position = std::find(oldContacts, end, 'r');
             if(position != end){
                 std::string message;
-                cout << "Prijimanie ziadosti ukoncite stlacenim 'q'" << endl;
+                std::cout << "Prijimanie ziadosti ukoncite stlacenim 'q'" << std::endl;
                 while(message != "q"){
                     if(numberOfRequests > 0){
-                        cout  << "Zadajte meno a prijatie(a) alebo neprijatie(n) ziadosti o priatelstvo: ";
+                        std::cout  << "Zadajte meno a prijatie(a) alebo neprijatie(n) ziadosti o priatelstvo: ";
                         getline(cin, message);
                     } else { sleep(1);}
 
@@ -580,7 +626,7 @@ void* chatApp(void *data){
             int ok;
             n = read(d->socket, &ok, 255);
             if(ok==0){
-                cout << "Zadany pouzivatel sa nenachadza v kontaktoch" << endl;
+                std::cout << "Zadany pouzivatel sa nenachadza v kontaktoch" << std::endl;
             } else {
                 ///continue
                 bzero(buffer,256);
@@ -593,12 +639,10 @@ void* chatApp(void *data){
 
                 char messages[1024];
                 bzero(messages,1024);
-                cout << "cakam na spravy" << endl;
                 n = read(d->socket, messages, 1023);
                 if (n < 0){perror("Error reading from socket");return nullptr;}
                 //Vsetky predchadzajuce spravy
                 std::cout << messages << std::endl;
-                cout << "spravy" << endl;
                 pthread_t sendThread, recieveThread;
                 pthread_create(&sendThread, NULL, &sendMessage, d);
                 pthread_create(&recieveThread, NULL, &recieveMessage, d);
