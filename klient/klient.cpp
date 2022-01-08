@@ -352,6 +352,15 @@ void* chatApp(void *data){
             ///Wait
             waitSocket(d->socket);
             //////
+            cout << "1 - Poslat subor jednemu pouzivatelovi" << endl;
+            cout << "2 - Poslat subor skupine" << endl;
+            int answer;
+            std::cin >> answer;
+            n = write(d->socket, &answer, sizeof(int));
+
+            ///Wait
+            waitSocket(d->socket);
+            //////
 
             std::string myname = d->name;
             n = write(d->socket, myname.c_str(), strlen(myname.c_str()));
@@ -364,8 +373,13 @@ void* chatApp(void *data){
             char filename[256];
             char filename2[256];
             FILE *f;
-            std::cout << "Komu chces poslat subor? ";
-            std::cin >> name;
+            if (answer == 1) {
+                cout << "Komu chces poslat subor? ";
+            } else if (answer == 2) {
+                cout << "Akej skupine chces poslat subor? ";
+            }
+
+            cin >> name;
 
             n = write(d->socket, name.c_str(), strlen(name.c_str()));
             if (n < 0){perror("Error writing to socket");return nullptr;}
@@ -373,8 +387,10 @@ void* chatApp(void *data){
             //skontrolovanie ci je v kontaktoch
             int ok;
             n = read(d->socket, &ok, 255);
-            if(ok==0){
-                std::cout << "Zadany pouzivatel sa nenachadza v kontaktoch" << std::endl;
+            if(ok==0 && answer == 1){
+                cout << "Zadany pouzivatel sa nenachadza v kontaktoch" << endl;
+            } else if(ok==0 && answer == 2) {
+                cout << "Do tejto skupiny nepatris" << endl;
             } else {
             ///////////////////////////////////
                 std::cout << "Zadaj nazov suboru: ";

@@ -57,7 +57,17 @@ int checkLoggedInUsers(std::string myName){
     }
     return 0;
 }
-
+int checkUserInGroup(std::string group, std::string name) {
+    for (auto x : groups){
+        if (x.first == group)
+            for (auto y : x.second){
+                if (y == name){
+                    return 1;
+                }
+            }
+    }
+    return 0;
+}
 void showUsers() {
     std::cout << "MENO HESLO" << std::endl;
     for (auto x : users)
@@ -600,6 +610,15 @@ void* chatApp(void *data){
             ////Continue
             continueSocket(newsockfd);
             //////////////
+            bool skupina = false;
+            int answer;
+            n = read(newsockfd, &answer, 255);
+            if (n < 0){perror("Error writing to socket");return nullptr;}
+            if(answer == 2)
+                skupina = true;
+            ////Continue
+            continueSocket(newsockfd);
+            //////////////
             int ch = 0;
             string sender;
             bzero(buffer, 255);
@@ -616,8 +635,11 @@ void* chatApp(void *data){
             reciever = std::string(buffer);
             ////////////////////////
             int ok = 1;
-
-            ok = checkUserInContacts(sender, reciever);
+            if(skupina) {
+                ok = checkUserInGroup(reciever, sender);
+            } else {
+                ok = checkUserInContacts(sender, reciever);
+            }
             n = write(newsockfd, &ok, sizeof(int));
             if (n < 0){perror("Error writing to socket");return nullptr;}
             if(ok == 1) {
@@ -659,14 +681,15 @@ void* chatApp(void *data){
 
                 char message[256];
                 bzero(message,256);
+                strcat(message, "Poslal som subor ");
+                strcat(message, filename.c_str());
                 char recieverSender[256];
                 bzero(recieverSender,256);
+
                 strcat(recieverSender, reciever.c_str());
                 strcat(recieverSender, " ");
                 strcat(recieverSender, sender.c_str());
 
-                strcat(message, "Poslal som ti subor ");
-                strcat(message, filename.c_str());
                 saveMessage(recieverSender, message);
                 int recieveSocket = findRecieverSocket(reciever);
                 if(recieveSocket != 0) {
