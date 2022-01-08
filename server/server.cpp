@@ -13,11 +13,14 @@
 #include <unordered_map>
 #include <pthread.h>
 #include <vector>
+
 #define SIZE 1024
+
 #define fileUsers "../users.txt"
 #define fileContacts "../contacts.txt"
 #define fileMessages "../messages.txt"
 #define fileGroups "../groups.txt"
+
 using namespace std;
 
 typedef struct socketData{
@@ -29,6 +32,30 @@ std::unordered_map<std::string, int> sockets;
 std::unordered_map<std::string, std::string> contacts;
 std::unordered_map<std::string, std::string> chatWith;
 std::unordered_map<std::string, std::vector<std::string>> groups;
+
+int checkIfUserExists(std::string name){
+    for (auto x : users){
+        if (x.first == name)
+            return 1;
+    }
+    return 0;
+}
+
+int checkUserInContacts(std::string myName, std::string name){
+    for (auto x : contacts){
+        if ((x.first == myName && x.second == name) || (x.first == name && x.second == myName))
+            return 1;
+    }
+    return 0;
+}
+
+int checkLoggedInUsers(std::string myName){
+    for (auto x : sockets){
+        if (x.first == myName)
+            return 1;
+    }
+    return 0;
+}
 
 void showUsers() {
     std::cout << "MENO HESLO" << std::endl;
@@ -169,7 +196,7 @@ int registerAcc(int *newsockfd){
 
     const char * name = strtok(buffer," ");
     const char * password = strtok(NULL,"\n");
-    sockets[name] = *newsockfd;
+
     for (auto x : users) {
         if (x.first == name){
             msg = "2";
@@ -179,14 +206,15 @@ int registerAcc(int *newsockfd){
     }
 
     if (!existuje){
+        sockets[name] = *newsockfd;
         saveData(fileUsers, users, name, password);
     }
 
     n = write(*newsockfd, msg, strlen(msg)+1);
     if (n < 0){perror("Error writing to socket");return 5;}
+    if(msg == "1"){return 1;}
     return 0;
 }
-
 int logIn(int *newsockfd){
     int n;
     char buffer[256];
@@ -196,16 +224,26 @@ int logIn(int *newsockfd){
     n = read(*newsockfd, buffer, 255);
     if (n < 0){perror("Error reading from socket");return 4;}
 
-    const char * token = strtok(buffer," ");;
+    const char * token = strtok(buffer," ");
     const char * token2 = strtok(NULL,"\n");
-    sockets[token] = *newsockfd;
+    if(checkLoggedInUsers(token)==1){
+        msg = "4";
+        n = write(*newsockfd, msg, strlen(msg)+1);
+        if (n < 0){perror("Error writing to socket");return 5;}
+    }
+
+
     auto item = users.find(token);
     if(item != users.end()){
         msg = (strcmp((item->second).c_str(), token2)==0) ? "1" : "2";
+        if(msg=="1"){
+            sockets[token] = *newsockfd;
+        }
     } else msg = "3";
 
     n = write(*newsockfd, msg, strlen(msg)+1);
     if (n < 0){perror("Error writing to socket");return 5;}
+    if(msg == "1"){return 1;}
     return 0;
 }
 
@@ -219,6 +257,7 @@ int findRecieverSocket(std::string name){
     }
     return socket;
 }
+
 void* showContacts(int &newsockfd){
     char oldContacts[SIZE];
     char requestContacts[SIZE];
@@ -298,7 +337,6 @@ void* showContacts(int &newsockfd){
     }
     return nullptr;
 }
-
 void* deleteContact(int &newsockfd){
     std::string success = "0";
     char message[256];
@@ -323,7 +361,9 @@ void* deleteContact(int &newsockfd){
     if (n < 0){perror("Error writing to socket");return nullptr;}
     return nullptr;
 }
+
 void* chat(int &newsockfd, bool user){
+    getAllContacts(se)
     char recieverSender[256];
     char recieverSender2[256];
     char message[256];
@@ -339,6 +379,15 @@ void* chat(int &newsockfd, bool user){
     strcpy(recieverSender2, recieverSender);
     std::string reciever = std::string((char *)strtok(recieverSender2," "));
     std::string sender = std::string((char *)strtok(NULL,"\n"));
+    ////////////////////////
+    if(user == true){
+        int ok = checkUserInContacts(sender, reciever)==0 ? 1 : 0;
+        cout << ok << endl;
+        n = write(newsockfd, &ok, sizeof(int));
+        if (n < 0){perror("Error writing to socket");return nullptr;}
+        if(ok == 1) {return nullptr;}
+    }
+    //////////////////////////
     chatWith[sender] = reciever;
 
     std::ifstream infile(fileMessages);
@@ -412,6 +461,7 @@ void* chat(int &newsockfd, bool user){
         }
     }
     chatWith[sender] = "";
+    cout << "Koniec Konverzacie " << sender << "s " << reciever << endl;
     return nullptr;
 }
 
@@ -432,9 +482,9 @@ void* chatApp(void *data){
     if (n < 0){perror("Error reading from socket");return nullptr;}
 
     if (strcmp(buffer, "a")==0){
-        logIn(&newsockfd);
+        if(logIn(&newsockfd)==0){close(newsockfd);cout << "koniec spojenia" << endl;return nullptr;};
     } else if(strcmp(buffer, "n")==0){
-        registerAcc(&newsockfd);
+        if(registerAcc(&newsockfd)==0){close(newsockfd);cout << "koniec spojenia" << endl;return nullptr;};
     }
     /*--------------------------------------------*/
     bool logOut = false;
@@ -459,8 +509,16 @@ void* chatApp(void *data){
             bzero(deleteLine, 256);
             strcat(deleteLine, (myName).c_str());
             deleteData(fileContacts, contacts, deleteLine);
+            sockets.erase(myName);
+
         } else if(strcmp(buffer, "2")==0) {
             logOut = true;
+            bzero(buffer, 255);
+            n = read(newsockfd, buffer, 255);
+            if (n < 0){perror("Error writing to socket");return nullptr;}
+            std::string myName = std::string(buffer);
+            sockets.erase(myName);
+
         } else if(strcmp(buffer, "3")==0) {
             int ch = 0;
             string sender;
@@ -524,7 +582,7 @@ void* chatApp(void *data){
             bzero(buffer,256);
             n = read(newsockfd, buffer, 255);
             if (n < 0){perror("Error writing to socket");return nullptr;}
-            int words = 0;
+            int words = 1;
             char c;
             FILE *f;
             f = fopen(buffer, "r");
@@ -616,9 +674,9 @@ int main(int argc, char *argv[])
     loadData(fileUsers, users);
     loadGroupChats();
     //------------------------------------------//
-    pthread_t threadsApp[users.size()+1];
+    pthread_t threadsApp[users.size()+3];
     int threadsSize = sizeof threadsApp / sizeof threadsApp[0];
-    std::cout << threadsSize << std::endl;
+    std::cout << "Maximalny pocet klientov: " << threadsSize << std::endl;
     /*-------------------------------------------*/
     struct socketData port;
     connection(&port, atoi(argv[1]));
@@ -630,5 +688,6 @@ int main(int argc, char *argv[])
     for (int i = 0; i < threadsSize; ++i) {
         pthread_join(threadsApp[i], NULL);
     }
+
     return 0;
 }
