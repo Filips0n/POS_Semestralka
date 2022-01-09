@@ -198,7 +198,7 @@ void* sendMessage(void *data){
     }
     return nullptr;
 }
-void* recieveMessage(void *data){
+void* receiveMessage(void *data){
     DATA *d = (DATA *)data;
     char message[256];
     int n;
@@ -234,6 +234,7 @@ void* showRequests(void *data) {
     strcat(buffer, "continue");
     n = write(d->socket, buffer, strlen(buffer)-1);
     if (n < 0){perror("Error writing to socket");return nullptr;}
+    bzero(buffer,256);
     ////////////
     bzero(requests2,SIZE);
     n = read(d->socket, requests2, SIZE-1);
@@ -394,9 +395,11 @@ void* chatApp(void *data){
                 cout << "Do tejto skupiny nepatris" << endl;
             } else {
             ///////////////////////////////////
+                bzero(filename2, 256);
                 std::cout << "Zadaj nazov suboru: ";
                 std::cin >> filename2;
                 bzero(filename, 256);
+
                 strcat(filename, "../");
                 strcat(filename, filename2);
                 write(d->socket, filename2, 255);
@@ -665,12 +668,12 @@ void* chatApp(void *data){
                 //Vsetky predchadzajuce spravy
                 std::cout << messages << std::endl;
                 bzero(messages,1024);
-                pthread_t sendThread, recieveThread;
+                pthread_t sendThread, receiveThread;
                 pthread_create(&sendThread, NULL, &sendMessage, d);
-                pthread_create(&recieveThread, NULL, &recieveMessage, d);
+                pthread_create(&receiveThread, NULL, &receiveMessage, d);
 
                 pthread_join(sendThread, NULL);
-                pthread_join(recieveThread, NULL);
+                pthread_join(receiveThread, NULL);
             }
         }
         std::cin.clear();

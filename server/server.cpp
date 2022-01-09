@@ -25,6 +25,7 @@ using namespace std;
 
 typedef struct socketData{
     int socket;
+    pthread_mutex_t *mutex;
 } DATA;
 
 std::unordered_map<std::string, std::string> users;
@@ -40,6 +41,7 @@ void* continueSocket(int &newsockfd){
     strcat(buffer, "continue");
     n = write(newsockfd, buffer, strlen(buffer)-1);
     if (n < 0){perror("Error writing to socket");return nullptr;}
+    bzero(buffer,256);
     return nullptr;
 }
 
@@ -76,8 +78,10 @@ void showUsers() {
     std::cout << "--------------------" << std::endl;
 }
 
-void* loadGroupChats(){
+void* loadGroupChats(void *data){
+    DATA *d = (DATA *)data;
     groups.clear();
+    pthread_mutex_lock(d->mutex);
     std::ifstream infile(fileGroups);
     std::string readLine;
     if (!infile.is_open()) { std::exit(EXIT_FAILURE); }
@@ -99,9 +103,11 @@ void* loadGroupChats(){
         }
     }
     infile.close();
+    pthread_mutex_unlock(d->mutex);
     return nullptr;
 }
-void* saveGroupChat(int &newsockfd){
+void* saveGroupChat(int &newsockfd, void *data){
+    DATA *d = (DATA *)data;
     char buffer[256];
     char countBuffer[256];
     int n;
@@ -120,6 +126,7 @@ void* saveGroupChat(int &newsockfd){
     std::string name = std::string((char *)strtok(buffer," "));
 
     std::ofstream myfile;
+    pthread_mutex_lock(d->mutex);
     myfile.open(fileGroups,std::ios::app);
     if (myfile.is_open()) {
         myfile << name;
@@ -130,11 +137,14 @@ void* saveGroupChat(int &newsockfd){
     } else std::cout << "Unable to open file";
     myfile << "\n";
     myfile.close();
-    loadGroupChats();
+    pthread_mutex_unlock(d->mutex);
+    loadGroupChats(d);
     return nullptr;
 }
-void* loadData(std::string filename, std::unordered_map<std::string, std::string> &pStructure) {
+void* loadData(std::string filename, std::unordered_map<std::string, std::string> &pStructure, void *data) {
+    DATA *d = (DATA *)data;
     pStructure.clear();
+    pthread_mutex_lock(d->mutex);
     std::ifstream infile(filename);
     std::string readLine;
     if (!infile.is_open()) { std::exit(EXIT_FAILURE); }
@@ -147,13 +157,16 @@ void* loadData(std::string filename, std::unordered_map<std::string, std::string
         pStructure[data1]=data2;
     }
     infile.close();
+    pthread_mutex_unlock(d->mutex);
     if(pStructure == users){
         showUsers();
     }
     return nullptr;
 }
-int deleteData(std::string filename, std::unordered_map<std::string, std::string> &pStructure, char* pDeleteLine){
+int deleteData(std::string filename, std::unordered_map<std::string, std::string> &pStructure, char* pDeleteLine, void *data){
+    DATA *d = (DATA *)data;
     int deleteOk = 0;
+    pthread_mutex_lock(d->mutex);
     std::ifstream infile(filename);
     std::ofstream temp;
     temp.open("../temp.txt");
@@ -168,33 +181,42 @@ int deleteData(std::string filename, std::unordered_map<std::string, std::string
     }
     infile.close();
     temp.close();
+    pthread_mutex_unlock(d->mutex);
     remove(filename.c_str());
     rename("../temp.txt", filename.c_str());
-    loadData(filename, pStructure);
+    loadData(filename, pStructure, d);
     return deleteOk;
 }
-void* saveData(std::string filename, std::unordered_map<std::string, std::string> &pStructure, std::string data1, std::string data2){
+void* saveData(std::string filename, std::unordered_map<std::string, std::string> &pStructure, std::string data1, std::string data2, void *data){
+    DATA *d = (DATA *)data;
     std::ofstream myfile;
+    pthread_mutex_lock(d->mutex);
     myfile.open(filename,std::ios::app);
     if (myfile.is_open()) {
         myfile << data1 << " " << data2 << "\n";
         myfile.close();
+        pthread_mutex_unlock(d->mutex);
     } else std::cout << "Unable to open file";
-    loadData(filename, pStructure);
+
+    loadData(filename, pStructure, d);
     return nullptr;
 }
-void saveMessage(char recieverSender[256], char message[256]) {
+void saveMessage(char recieverSender[256], char message[256], void *data) {
+    DATA *d = (DATA *)data;
     std::string recievSend(recieverSender);
     std::string mes(message);
     std::ofstream myfile;
+    pthread_mutex_lock(d->mutex);
     myfile.open(fileMessages,std::ios::app);
     if (myfile.is_open()) {
         myfile << recievSend << " " << mes << "\n";
         myfile.close();
+        pthread_mutex_unlock(d->mutex);
     } else std::cout << "Unable to open file";
 }
 
-int registerAcc(int *newsockfd){
+int registerAcc(int *newsockfd, void *data){
+    DATA *d = (DATA *)data;
     int n;
     char buffer[256];
     bzero(buffer,256);
@@ -217,7 +239,7 @@ int registerAcc(int *newsockfd){
 
     if (!existuje){
         sockets[name] = *newsockfd;
-        saveData(fileUsers, users, name, password);
+        saveData(fileUsers, users, name, password, d);
     }
 
     n = write(*newsockfd, msg, strlen(msg)+1);
@@ -240,8 +262,8 @@ int logIn(int *newsockfd){
         msg = "4";
         n = write(*newsockfd, msg, strlen(msg)+1);
         if (n < 0){perror("Error writing to socket");return 5;}
+        return 0;
     }
-
 
     auto item = users.find(token);
     if(item != users.end()){
@@ -268,7 +290,8 @@ int findRecieverSocket(std::string name){
     return socket;
 }
 
-void* showContacts(int &newsockfd){
+void* showContacts(int &newsockfd, void *data){
+    DATA *d = (DATA *)data;
     char oldContacts[SIZE];
     char requestContacts[SIZE];
     char buffer[256];
@@ -281,6 +304,7 @@ void* showContacts(int &newsockfd){
     continueSocket(newsockfd);
     //////////////
     n = read(newsockfd, buffer, 255);
+    pthread_mutex_lock(d->mutex);
     std::ifstream infile(fileContacts);
     std::string s;
     int numberOfContacts = 0;
@@ -289,18 +313,20 @@ void* showContacts(int &newsockfd){
         std::stringstream stringLine(s);
         getline( stringLine, s, ' ' );
         if (s.compare("r") != 0){
-            if (strcmp(buffer, s.c_str())==0){
-                getline( stringLine, s, ' ' );
-                strcat(oldContacts, s.c_str());
-                strcat(oldContacts, "\n");
-                numberOfContacts++;
-            } else {
-                std::string name = s;
-                getline( stringLine, s, ' ' );
+            if(s.compare("d") != 0){
                 if (strcmp(buffer, s.c_str())==0){
-                    strcat(oldContacts, name.c_str());
+                    getline( stringLine, s, ' ' );
+                    strcat(oldContacts, s.c_str());
                     strcat(oldContacts, "\n");
                     numberOfContacts++;
+                } else {
+                    std::string name = s;
+                    getline( stringLine, s, ' ' );
+                    if (strcmp(buffer, s.c_str())==0){
+                        strcat(oldContacts, name.c_str());
+                        strcat(oldContacts, "\n");
+                        numberOfContacts++;
+                    }
                 }
             }
         } else {
@@ -316,6 +342,7 @@ void* showContacts(int &newsockfd){
         }
     }
     infile.close();
+    pthread_mutex_unlock(d->mutex);
     strcat(oldContacts, requestContacts);
 
     if(numberOfContacts <= 0){
@@ -339,17 +366,18 @@ void* showContacts(int &newsockfd){
                 //odstranim kontakt, ak je a ako ano, znovu pridam kontakt uz bez 'r'
                 bzero(deleteLine, 256);
                 strcat(deleteLine, ("r " + myName + " " + name).c_str());
-                deleteData(fileContacts, contacts, deleteLine);
+                deleteData(fileContacts, contacts, deleteLine, d);
 
                 if(accept.compare("a")==0){
-                    saveData(fileContacts, contacts, myName, name);
+                    saveData(fileContacts, contacts, myName, name, d);
                 }
             }
         }
     }
     return nullptr;
 }
-void* showRequests(int &newsockfd) {
+void* showRequests(int &newsockfd, void *data) {
+    DATA *d = (DATA *)data;
     vector<std::string> deleteLines;
     int n;
     char requests[SIZE];
@@ -357,6 +385,7 @@ void* showRequests(int &newsockfd) {
     bzero(buffer,256);
     bzero(requests,SIZE);
     n = read(newsockfd, buffer, 255);
+    pthread_mutex_lock(d->mutex);
     std::ifstream infile(fileContacts);
     std::string s;
     std::string rd;
@@ -387,10 +416,10 @@ void* showRequests(int &newsockfd) {
         }
     }
     infile.close();
-
+    pthread_mutex_unlock(d->mutex);
     for (auto i = deleteLines.begin(); i != deleteLines.end(); ++i){
         deleteLine = *i;
-        deleteData(fileContacts, contacts, const_cast<char*>(deleteLine.c_str()));
+        deleteData(fileContacts, contacts, const_cast<char*>(deleteLine.c_str()), d);
     }
 
     usleep(100);
@@ -417,7 +446,8 @@ void* showRequests(int &newsockfd) {
     if (n < 0){perror("Error writing to socket");return nullptr;}
     return nullptr;
 }
-void* deleteContact(int &newsockfd){
+void* deleteContact(int &newsockfd, void *data){
+    DATA *d = (DATA *)data;
     std::string success = "0";
     char message[256];
     int n;
@@ -430,19 +460,20 @@ void* deleteContact(int &newsockfd){
     char deleteLine[256];
     bzero(deleteLine, 256);
     strcat(deleteLine, (myName + " " + delName).c_str());
-    success = std::to_string(deleteData(fileContacts, contacts, deleteLine));
+    success = std::to_string(deleteData(fileContacts, contacts, deleteLine, d));
     if(success == "0"){
         bzero(deleteLine, 256);
         strcat(deleteLine, (delName + " " + myName).c_str());
-        success = std::to_string(deleteData(fileContacts, contacts, deleteLine));
+        success = std::to_string(deleteData(fileContacts, contacts, deleteLine, d));
     }
-    saveData(fileContacts, contacts, "d " + delName, myName);
+    saveData(fileContacts, contacts, "d " + delName, myName, d);
     n = write(newsockfd, success.c_str(), strlen(success.c_str()));
     if (n < 0){perror("Error writing to socket");return nullptr;}
     return nullptr;
 }
 
-void* chat(int &newsockfd, bool user){
+void* chat(int &newsockfd, bool user, void *data){
+    DATA *d = (DATA *)data;
     char recieverSender[256];
     char recieverSender2[256];
     char message[256];
@@ -471,6 +502,7 @@ void* chat(int &newsockfd, bool user){
     //////////////////////////
     chatWith[sender] = reciever;
 
+    pthread_mutex_lock(d->mutex);
     std::ifstream infile(fileMessages);
     std::string s;
     int numberOfMessages = 0;
@@ -503,6 +535,7 @@ void* chat(int &newsockfd, bool user){
         }
     }
     infile.close();
+    pthread_mutex_unlock(d->mutex);
     if(numberOfMessages <= 0){
         strcat(oldMessages, "Prazdna historia\n");
     }
@@ -520,7 +553,7 @@ void* chat(int &newsockfd, bool user){
         bzero(message,256);
         n = read(newsockfd, message, 255);
         if(strcmp(message, "q")!=0){
-            saveMessage(recieverSender, message);
+            saveMessage(recieverSender, message, d);
             char message2[256];
             strcpy(message2, sender.c_str());
             strcat(message2, " ");
@@ -569,14 +602,14 @@ void* chatApp(void *data){
     if (strcmp(buffer, "a")==0){
         if(logIn(&newsockfd)==0){close(newsockfd);return nullptr;};
     } else if(strcmp(buffer, "n")==0){
-        if(registerAcc(&newsockfd)==0){close(newsockfd);return nullptr;};
+        if(registerAcc(&newsockfd, d)==0){close(newsockfd);return nullptr;};
     } else {
         close(newsockfd);return nullptr;
     }
     /*--------------------------------------------*/
     bool logOut = false;
     bool deleteAcc = false;
-    showRequests(newsockfd);
+    showRequests(newsockfd, d);
     while(!logOut && !deleteAcc){
         bzero(buffer,256);
         n = read(newsockfd, buffer, 255);
@@ -591,13 +624,15 @@ void* chatApp(void *data){
             n = read(newsockfd, buffer, 255);
             if (n < 0){perror("Error reading from socket");return nullptr;}
 
-            deleteData(fileUsers, users, buffer);
+            deleteData(fileUsers, users, buffer, d);
 
             std::string myName = std::string((char *)strtok(buffer," "));
             char deleteLine[256];
             bzero(deleteLine, 256);
             strcat(deleteLine, (myName).c_str());
-            deleteData(fileContacts, contacts, deleteLine);
+
+            deleteData(fileContacts, contacts, deleteLine, d);
+
             sockets.erase(myName);
 
         } else if(strcmp(buffer, "2")==0) {
@@ -658,9 +693,11 @@ void* chatApp(void *data){
                 //////////////
                 filename = std::string(buffer);
                 char filename2[256];
+                bzero(filename2, 256);
                 strcat(filename2, "../server/files/");
                 strcat(filename2, filename.c_str());
                 std::ofstream myfile;
+                pthread_mutex_lock(d->mutex);
                 myfile.open(filename2);
                 bzero(buffer, 255);
                 int words;
@@ -682,12 +719,20 @@ void* chatApp(void *data){
                     ch++;
                 }
                 myfile.close();
-                //printf("[+]Data written in the file successfully.\n");
+                pthread_mutex_unlock(d->mutex);
 
                 char message[256];
+                char message2[256];
                 bzero(message,256);
-                strcat(message, "Poslal som subor ");
+                bzero(message2,256);
+
+                strcat(message, sender.c_str());
+                strcat(message, " Poslal som subor ");
                 strcat(message, filename.c_str());
+
+                strcat(message2, "Poslal som subor ");
+                strcat(message2, filename.c_str());
+
                 char recieverSender[256];
                 bzero(recieverSender,256);
 
@@ -695,9 +740,9 @@ void* chatApp(void *data){
                 strcat(recieverSender, " ");
                 strcat(recieverSender, sender.c_str());
 
-                saveMessage(recieverSender, message);
+                saveMessage(recieverSender, message2, d);
                 int recieveSocket = findRecieverSocket(reciever);
-                if(recieveSocket != 0) {
+                if((chatWith[reciever] == sender) && recieveSocket != 0) {
                     n = write(recieveSocket, message, strlen(message));
                     if (n < 0) {
                         perror("Error writing to socket");
@@ -712,6 +757,7 @@ void* chatApp(void *data){
             int words = 0;
             char c;
             FILE *f;
+            pthread_mutex_lock(d->mutex);
             f = fopen(buffer, "r");
             bzero(buffer,256);
             if (f == NULL) {
@@ -726,7 +772,7 @@ void* chatApp(void *data){
                     words++;
             }
 
-            char chr;
+            char chr = '0';
             write(newsockfd, &words, sizeof(int));
             usleep(100);
             bzero(buffer, 255);
@@ -738,8 +784,9 @@ void* chatApp(void *data){
                 chr = fgetc(f);
             }
             fclose(f);
+            pthread_mutex_unlock(d->mutex);
         } else if(strcmp(buffer, "5")==0) {
-            saveGroupChat(newsockfd);
+            saveGroupChat(newsockfd, d);
         } else if(strcmp(buffer, "6")==0) {
             std::string success = "0";
 
@@ -752,7 +799,7 @@ void* chatApp(void *data){
             for (auto x: users) {
                 if (reciever == x.first){
                     success = "1";
-                    saveData(fileContacts, contacts, "r " + reciever, sender);
+                    saveData(fileContacts, contacts, "r " + reciever, sender, d);
                     break;
                 }
             }
@@ -760,17 +807,18 @@ void* chatApp(void *data){
             if (n < 0){perror("Error writing to socket");return nullptr;}
 
         } else if(strcmp(buffer, "7")==0) {
-            deleteContact(newsockfd);
+            deleteContact(newsockfd, d);
         } else if(strcmp(buffer, "8")==0) {
-            showContacts(newsockfd);
+            showContacts(newsockfd, d);
         } else if(strcmp(buffer, "9")==0) {
-            chat(newsockfd, true);
+            chat(newsockfd, true, d);
         } else if(strcmp(buffer, "10")==0) {
-            chat(newsockfd, false);
+            chat(newsockfd, false, d);
         }
     }
     //----------------------------------------------------------------------//
     close(newsockfd);
+    cout << "koniec klient" << endl;
     return nullptr;
 }
 
@@ -799,15 +847,18 @@ int connection(void *data, int server){
 
 int main(int argc, char *argv[])
 {
-    loadData(fileUsers, users);
-    loadData(fileContacts, contacts);
-    loadGroupChats();
+    pthread_mutex_t mutex;
+    pthread_mutex_init(&mutex, NULL);
+    DATA port = {0,&mutex};
+    loadData(fileUsers, users, &port);
+    loadData(fileContacts, contacts, &port);
+    loadGroupChats(&port);
     //------------------------------------------//
-    pthread_t threadsApp[users.size()+3];
+    pthread_t threadsApp[users.size()];
     int threadsSize = sizeof threadsApp / sizeof threadsApp[0];
     std::cout << "Maximalny pocet klientov: " << threadsSize << std::endl;
     /*-------------------------------------------*/
-    struct socketData port;
+
     connection(&port, atoi(argv[1]));
 
     for (int i = 0; i < threadsSize; ++i) {
@@ -818,5 +869,7 @@ int main(int argc, char *argv[])
         pthread_join(threadsApp[i], NULL);
     }
 
+    pthread_mutex_destroy(&mutex);
+    close(port.socket);
     return 0;
 }
