@@ -471,7 +471,6 @@ void* chatApp(void *data){
                 int ch = 0;
                 while(ch != words){
                     read(d->socket, buffer, 255);
-                    //fprintf(fp, "%s", buffer);
                     if (myfile.is_open()) {
                         myfile << buffer << " ";
                     } else std::cout << "Unable to open file";

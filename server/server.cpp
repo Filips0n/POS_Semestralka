@@ -853,7 +853,7 @@ int main(int argc, char *argv[])
     loadData(fileContacts, contacts, &port);
     loadGroupChats(&port);
     //------------------------------------------//
-    pthread_t threadsApp[users.size()];
+    pthread_t threadsApp[users.size()+5];
     int threadsSize = sizeof threadsApp / sizeof threadsApp[0];
     std::cout << "Maximalny pocet klientov: " << threadsSize << std::endl;
     /*-------------------------------------------*/
