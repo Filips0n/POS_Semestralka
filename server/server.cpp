@@ -40,6 +40,7 @@ void* continueSocket(int &newsockfd){
     strcat(buffer, "continue");
     n = write(newsockfd, buffer, strlen(buffer)-1);
     if (n < 0){perror("Error writing to socket");return nullptr;}
+    bzero(buffer,256);
     return nullptr;
 }
 
@@ -451,10 +452,10 @@ void* chat(int &newsockfd, bool user){
 
     bzero(oldMessages,1024);
     bzero(recieverSender,256);
-
+    cout << "som pred " << endl;
     n = read(newsockfd, recieverSender, 255);
     if (n < 0){perror("Error writing to socket");return nullptr;}
-
+    cout << "som za " << endl;
     strcpy(recieverSender2, recieverSender);
     std::string reciever = std::string((char *)strtok(recieverSender2," "));
     std::string sender = std::string((char *)strtok(NULL,"\n"));
@@ -648,7 +649,7 @@ void* chatApp(void *data){
             n = write(newsockfd, &ok, sizeof(int));
             if (n < 0){perror("Error writing to socket");return nullptr;}
             if(ok == 1) {
-            //////////////////////////
+                //////////////////////////
                 string filename;
                 bzero(buffer, 255);
                 n = read(newsockfd, buffer, 255);
@@ -696,14 +697,14 @@ void* chatApp(void *data){
                 strcat(recieverSender, sender.c_str());
 
                 saveMessage(recieverSender, message);
-                int recieveSocket = findRecieverSocket(reciever);
-                if(recieveSocket != 0) {
-                    n = write(recieveSocket, message, strlen(message));
-                    if (n < 0) {
-                        perror("Error writing to socket");
-                        return nullptr;
-                    }
-                }
+//                int recieveSocket = findRecieverSocket(reciever);
+//                if(recieveSocket != 0) {
+//                    n = write(recieveSocket, message, strlen(message));
+//                    if (n < 0) {
+//                        perror("Error writing to socket");
+//                        return nullptr;
+//                    }
+//                }
             }
         } else if(strcmp(buffer, "4")==0) {
             bzero(buffer,256);
@@ -738,6 +739,7 @@ void* chatApp(void *data){
                 chr = fgetc(f);
             }
             fclose(f);
+            cout << i << "fasdfsd" << endl;
         } else if(strcmp(buffer, "5")==0) {
             saveGroupChat(newsockfd);
         } else if(strcmp(buffer, "6")==0) {
@@ -745,7 +747,6 @@ void* chatApp(void *data){
 
             bzero(buffer,256);
             n = read(newsockfd, buffer, 255);
-
             std::string sender = std::string((char *)strtok(buffer," "));
             std::string reciever = std::string((char *)strtok(NULL,"\n"));
 
@@ -758,7 +759,7 @@ void* chatApp(void *data){
             }
             n = write(newsockfd, success.c_str(), strlen(success.c_str()));
             if (n < 0){perror("Error writing to socket");return nullptr;}
-
+            cout << "koniec 4 server " << endl;
         } else if(strcmp(buffer, "7")==0) {
             deleteContact(newsockfd);
         } else if(strcmp(buffer, "8")==0) {
@@ -818,5 +819,6 @@ int main(int argc, char *argv[])
         pthread_join(threadsApp[i], NULL);
     }
 
+    close(port.socket);
     return 0;
 }

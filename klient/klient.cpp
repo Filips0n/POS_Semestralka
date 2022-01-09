@@ -190,7 +190,13 @@ void* sendMessage(void *data){
     while(message != "q"){
         std::cout << d->name << ": ";
         getline(cin, message);
-
+        if(message == "x") {
+            cout << "Pises sifrovanu spravu: ";
+            getline(cin, message);
+            for(char& c : message) {
+                c += 3;
+            }
+        }
         bzero(buffer,256);
         strcat(buffer, (message).c_str());
         n = write(d->socket, buffer, strlen(buffer));
@@ -393,7 +399,7 @@ void* chatApp(void *data){
             } else if(ok==0 && answer == 2) {
                 cout << "Do tejto skupiny nepatris" << endl;
             } else {
-            ///////////////////////////////////
+                ///////////////////////////////////
                 std::cout << "Zadaj nazov suboru: ";
                 std::cin >> filename2;
                 bzero(filename, 256);
@@ -469,6 +475,7 @@ void* chatApp(void *data){
                     ch++;
                 }
                 myfile.close();
+                cout << i << "fadsfsad" << endl;
             } else {
                 std::cout << "Nikto ti neposlal taky subor..." << std::endl;
             }
@@ -648,14 +655,15 @@ void* chatApp(void *data){
             } else if(ok==0 && answer == 10) {
                 std::cout << "Do tejto skupiny nepatris" << std::endl;
             } else {
-                ///continue
-                bzero(buffer,256);
-                strcat(buffer, "continue");
-                n = write(d->socket, buffer, strlen(buffer)-1);
-                if (n < 0){perror("Error writing to socket");return nullptr;}
-                bzero(buffer,256);
-                ////////////
+//                ///continue
+//                bzero(buffer,256);
+//                strcat(buffer, "continue");
+//                n = write(d->socket, buffer, strlen(buffer)-1);
+//                if (n < 0){perror("Error writing to socket");return nullptr;}
+//                bzero(buffer,256);
+//                ////////////
                 std::cout << "Pises si s " << name << ", ak chces konverzaciu ukoncit stlac 'q'" << std::endl;
+                std::cout << "Ak chce poslat sifrovanu spravu stlac klavesu 'x'" << std::endl;
                 std::cout << "Vase spravy:" <<  std::endl;
 
                 char messages[1024];
