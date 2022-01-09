@@ -45,8 +45,9 @@ void* continueSocket(int &newsockfd){
 
 int checkUserInContacts(std::string myName, std::string name){
     for (auto x : contacts){
-        if ((x.first == myName && x.second == name) || (x.first == name && x.second == myName))
+        if ((x.first == myName && x.second == name) || (x.first == name && x.second == myName)){
             return 1;
+        }
     }
     return 0;
 }
@@ -567,6 +568,8 @@ void* chatApp(void *data){
         if(logIn(&newsockfd)==0){close(newsockfd);return nullptr;};
     } else if(strcmp(buffer, "n")==0){
         if(registerAcc(&newsockfd)==0){close(newsockfd);return nullptr;};
+    } else {
+        close(newsockfd);return nullptr;
     }
     /*--------------------------------------------*/
     bool logOut = false;

@@ -202,6 +202,7 @@ void* recieveMessage(void *data){
     DATA *d = (DATA *)data;
     char message[256];
     int n;
+    message[0] = '0';
     while(strcmp(message, "q")!=0){
         bzero(message,256);
         n = read(d->socket, message, 255);
@@ -418,7 +419,7 @@ void* chatApp(void *data){
                     waitSocket(d->socket);
                     //////
                     rewind(f);
-                    char ch;
+                    char ch = '0';
                     while (ch != EOF){
                         fscanf(f, "%s", buffer);
                         write(d->socket, buffer, 255);
@@ -649,6 +650,7 @@ void* chatApp(void *data){
                 strcat(buffer, "continue");
                 n = write(d->socket, buffer, strlen(buffer)-1);
                 if (n < 0){perror("Error writing to socket");return nullptr;}
+                bzero(buffer,256);
                 ////////////
                 std::cout << "Pises si s " << name << ", ak chces konverzaciu ukoncit stlac 'q'" << std::endl;
                 std::cout << "Vase spravy:" <<  std::endl;
@@ -659,6 +661,7 @@ void* chatApp(void *data){
                 if (n < 0){perror("Error reading from socket");return nullptr;}
                 //Vsetky predchadzajuce spravy
                 std::cout << messages << std::endl;
+                bzero(messages,1024);
                 pthread_t sendThread, recieveThread;
                 pthread_create(&sendThread, NULL, &sendMessage, d);
                 pthread_create(&recieveThread, NULL, &recieveMessage, d);
