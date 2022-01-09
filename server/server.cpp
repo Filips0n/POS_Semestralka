@@ -683,7 +683,7 @@ void* chatApp(void *data){
             n = write(newsockfd, &ok, sizeof(int));
             if (n < 0){perror("Error writing to socket");return nullptr;}
             if(ok == 1) {
-            //////////////////////////
+                //////////////////////////
                 string filename;
                 bzero(buffer, 255);
                 n = read(newsockfd, buffer, 255);
@@ -818,7 +818,6 @@ void* chatApp(void *data){
     }
     //----------------------------------------------------------------------//
     close(newsockfd);
-    cout << "koniec klient" << endl;
     return nullptr;
 }
 

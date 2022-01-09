@@ -190,7 +190,13 @@ void* sendMessage(void *data){
     while(message != "q"){
         std::cout << d->name << ": ";
         getline(cin, message);
-
+        if(message == "x") {
+            cout << "Pises sifrovanu spravu: ";
+            getline(cin, message);
+            for(char& c : message) {
+                c += 3;
+            }
+        }
         bzero(buffer,256);
         strcat(buffer, (message).c_str());
         n = write(d->socket, buffer, strlen(buffer));
@@ -659,6 +665,7 @@ void* chatApp(void *data){
                 bzero(buffer,256);
                 ////////////
                 std::cout << "Pises si s " << name << ", ak chces konverzaciu ukoncit stlac 'q'" << std::endl;
+                std::cout << "Ak chce poslat sifrovanu spravu stlac klavesu 'x'" << std::endl;
                 std::cout << "Vase spravy:" <<  std::endl;
 
                 char messages[1024];
