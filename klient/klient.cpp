@@ -428,6 +428,7 @@ void* chatApp(void *data){
                         //////
                         ch = fgetc(f);
                     }
+                    fclose(f);
                     std::cout << "Subor uspesne poslany na server" << std::endl;
                 } else {
                     std::cout << "Takyto subor neexistuje!" << std::endl;
@@ -642,8 +643,10 @@ void* chatApp(void *data){
             //skontrolovanie ci je v kontaktoch
             int ok;
             n = read(d->socket, &ok, 255);
-            if(ok==0){
+            if(ok==0 && answer == 9){
                 std::cout << "Zadany pouzivatel sa nenachadza v kontaktoch" << std::endl;
+            } else if(ok==0 && answer == 10) {
+                std::cout << "Do tejto skupiny nepatris" << std::endl;
             } else {
                 ///continue
                 bzero(buffer,256);
