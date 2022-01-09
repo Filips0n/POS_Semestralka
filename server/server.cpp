@@ -461,6 +461,8 @@ void* chat(int &newsockfd, bool user){
     int ok = 1;
     if(user == true){
         ok = checkUserInContacts(sender, reciever);
+    } else {
+        ok = checkUserInGroup(reciever, sender);
     }
     n = write(newsockfd, &ok, sizeof(int));
     if (n < 0){perror("Error writing to socket");return nullptr;}
@@ -732,6 +734,7 @@ void* chatApp(void *data){
                 usleep(100);
                 chr = fgetc(f);
             }
+            fclose(f);
         } else if(strcmp(buffer, "5")==0) {
             saveGroupChat(newsockfd);
         } else if(strcmp(buffer, "6")==0) {
